@@ -53,16 +53,16 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center px-4 py-8 bg-[#EDEEE9]">
-      <div className="max-w-md w-full bg-[#F5EBE1] rounded-[32px] shadow-warm-md overflow-hidden border border-[#E3D5CA]">
+    <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center px-4 py-8 bg-[#F0F8F8]">
+      <div className="max-w-md w-full bg-white rounded-[32px] shadow-ocean-md overflow-hidden border border-[#AEE3E0]">
         
         {/* Header */}
-        <div className="bg-[#D7BDB0] p-6 text-[#171717] text-center border-b border-[#E3D5CA]">
-          <div className="w-12 h-12 bg-[#F5EBE1] rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-warm-sm border border-[#E3D5CA]">
-            <Lock className="w-6 h-6 text-[#171717]" />
+        <div className="bg-[#2C6A74] p-6 text-white text-center border-b border-[#23555E]">
+          <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-ocean-sm border border-white/20">
+            <Lock className="w-6 h-6 text-[#D0EFEF]" />
           </div>
-          <h2 className="text-xl font-bold uppercase tracking-tight">Admin Portal</h2>
-          <p className="text-xs text-[#68635F] mt-0.5">Authorized Organizers Only</p>
+          <h2 className="text-xl font-bold uppercase tracking-tight text-white">Admin Portal</h2>
+          <p className="text-xs text-[#D0EFEF] mt-0.5">Authorized Organizers Only</p>
         </div>
 
         {/* Form */}
@@ -75,12 +75,12 @@ export default function AdminLoginPage() {
             </div>
           )}
 
-          <div className="bg-[#EDEEE9] p-3 rounded-2xl border border-[#D6CCC2]">
-            <label className="block text-[10px] font-bold uppercase text-[#68635F] mb-1">
+          <div className="bg-[#F0F8F8] p-3 rounded-2xl border border-[#AEE3E0]">
+            <label className="block text-[10px] font-bold uppercase text-[#2C6A74] mb-1">
               USERNAME
             </label>
             <div className="relative flex items-center">
-              <User className="w-4 h-4 text-[#68635F] mr-2" />
+              <User className="w-4 h-4 text-[#2C6A74] mr-2" />
               <input
                 type="text"
                 name="username"
@@ -88,17 +88,17 @@ export default function AdminLoginPage() {
                 onChange={handleChange}
                 placeholder="Admin username"
                 required
-                className="w-full bg-transparent text-sm font-semibold text-[#171717] focus:outline-none"
+                className="w-full bg-transparent text-sm font-semibold text-[#0F3238] focus:outline-none"
               />
             </div>
           </div>
 
-          <div className="bg-[#EDEEE9] p-3 rounded-2xl border border-[#D6CCC2]">
-            <label className="block text-[10px] font-bold uppercase text-[#68635F] mb-1">
+          <div className="bg-[#F0F8F8] p-3 rounded-2xl border border-[#AEE3E0]">
+            <label className="block text-[10px] font-bold uppercase text-[#2C6A74] mb-1">
               PASSWORD
             </label>
             <div className="relative flex items-center">
-              <KeyRound className="w-4 h-4 text-[#68635F] mr-2" />
+              <KeyRound className="w-4 h-4 text-[#2C6A74] mr-2" />
               <input
                 type="password"
                 name="password"
@@ -106,31 +106,26 @@ export default function AdminLoginPage() {
                 onChange={handleChange}
                 placeholder="••••••••"
                 required
-                className="w-full bg-transparent text-sm font-semibold text-[#171717] focus:outline-none"
+                className="w-full bg-transparent text-sm font-semibold text-[#0F3238] focus:outline-none"
               />
             </div>
-          </div>
-
-          {/* Test Credentials */}
-          <div className="p-3 rounded-2xl bg-[#EDEEE9] border border-[#D6CCC2] text-xs text-[#68635F]">
-            <p className="font-bold text-[#171717]">Default Credentials:</p>
-            <p className="mt-0.5 font-mono">Username: <strong className="text-[#171717]">admin</strong> | Password: <strong className="text-[#171717]">admin123</strong></p>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] font-bold rounded-2xl shadow-warm-sm transition-all border border-[#E3D5CA] disabled:opacity-50"
+            className="w-full py-3.5 bg-[#2C6A74] hover:bg-[#23555E] text-white font-bold rounded-2xl text-sm shadow-ocean-sm transition-all border border-[#23555E] disabled:opacity-50 cursor-pointer"
           >
-            {loading ? 'Authenticating...' : 'Sign In to Dashboard'}
+            {loading ? 'Authenticating...' : 'Login to Admin Dashboard'}
           </button>
 
-          <div className="flex items-center justify-center space-x-1.5 text-[11px] text-[#68635F] pt-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#171717]" />
-            <span>Encrypted Session & Password Protection</span>
+          <div className="pt-2 border-t border-[#AEE3E0] flex items-center justify-center space-x-1.5 text-[11px] text-[#2C6A74]">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#2C6A74]" />
+            <span>Protected by JWT session authentication</span>
           </div>
 
         </form>
+
       </div>
     </div>
   );

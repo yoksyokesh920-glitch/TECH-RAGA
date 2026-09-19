@@ -19,8 +19,63 @@ export default function QuizPage() {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showUnansweredModal, setShowUnansweredModal] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [warningMessage, setWarningMessage] = useState('');
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showFullscreenLockModal, setShowFullscreenLockModal] = useState(false);
+  const [checkStatusLoading, setCheckStatusLoading] = useState(false);
+  const [checkStatusMessage, setCheckStatusMessage] = useState('');
+
+  // Auto Fullscreen Trigger & Exit Prevention Listener
+  useEffect(() => {
+    const enterFullscreen = async () => {
+      try {
+        if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (e) {
+        console.warn('Fullscreen request omitted or restricted by browser:', e);
+      }
+    };
+    enterFullscreen();
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && !isBlocked && !submitting) {
+        setShowFullscreenLockModal(true);
+      } else {
+        setShowFullscreenLockModal(false);
+      }
+    };
+
+    const handleKeyDown = (e) => {
+      if ((e.key === 'Escape' || e.key === 'Esc') && !isBlocked && !submitting) {
+        setShowFullscreenLockModal(true);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('keydown', handleKeyDown);
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+  }, [isBlocked, submitting]);
+
+  const handleReenterFullscreen = async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+      setShowFullscreenLockModal(false);
+    } catch (e) {
+      console.warn('Re-entering fullscreen failed:', e);
+    }
+  };
 
   useEffect(() => {
     const savedPhone = localStorage.getItem('participant_phone');
@@ -79,7 +134,7 @@ export default function QuizPage() {
     }
   };
 
-  // Tab Switch & Window Blur Detection Effect
+  // Tab Switch & Window Blur Detection Effect (2-Chance Policy)
   useEffect(() => {
     if (loading || submitting || isBlocked || !session || !session.phone) return;
 
@@ -94,15 +149,23 @@ export default function QuizPage() {
     };
 
     const triggerTabSwitchBlock = async () => {
-      setIsBlocked(true);
       try {
-        await fetch('/api/quiz/tab-switch-block', {
+        const res = await fetch('/api/quiz/tab-switch-block', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: session.phone }),
         });
+        const data = await res.json();
+
+        if (data.blocked) {
+          setIsBlocked(true);
+          setShowWarningModal(false);
+        } else {
+          setWarningMessage(data.message || 'Warning 1 of 2: Tab switching is strictly prohibited!');
+          setShowWarningModal(true);
+        }
       } catch (err) {
-        console.error('Error reporting tab switch block:', err);
+        console.error('Error reporting tab switch:', err);
       }
     };
 
@@ -151,6 +214,13 @@ export default function QuizPage() {
     }
   };
 
+  // Format time in MM:SS
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Check unanswered questions
   const getUnansweredQuestionIndices = () => {
     return questions
@@ -174,6 +244,11 @@ export default function QuizPage() {
     setSubmitting(true);
     setShowSubmitModal(false);
     setShowReviewModal(false);
+
+    // Exit Fullscreen on Submit
+    if (document.fullscreenElement && document.exitFullscreen) {
+      await document.exitFullscreen().catch(() => {});
+    }
 
     const answerPayload = Object.keys(answers).map((qId) => ({
       question_id: Number(qId),
@@ -224,64 +299,104 @@ export default function QuizPage() {
     setShowUnansweredModal(false);
   };
 
-  const formatTime = (secs) => {
-    const minutes = Math.floor(secs / 60);
-    const seconds = secs % 60;
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const handleCheckStatusRefresh = async () => {
+    setCheckStatusLoading(true);
+    setCheckStatusMessage('');
+    try {
+      const phone = session?.phone || localStorage.getItem('participant_phone');
+      if (!phone) {
+        navigate('/register');
+        return;
+      }
+      const sessRes = await fetch(`/api/participant/session/${phone}`);
+      if (sessRes.ok) {
+        const sessData = await sessRes.json();
+        if (sessData.access_status === 'ALLOWED' || sessData.access_status === 'ALLOWED_RETAKE') {
+          setIsBlocked(false);
+          setSession(sessData);
+          await fetchSessionAndQuestions(phone);
+        } else {
+          setIsBlocked(true);
+          setSession(sessData);
+          setCheckStatusMessage('Session is still LOCKED by administrator. Please ask your invigilator to unblock access.');
+        }
+      } else {
+        setCheckStatusMessage('Failed to check session status. Please try again.');
+      }
+    } catch (err) {
+      console.error('Check status error:', err);
+      setCheckStatusMessage('Connection error. Please try again.');
+    } finally {
+      setCheckStatusLoading(false);
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center bg-[#EDEEE9]">
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 border-4 border-[#D7BDB0] border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm font-semibold text-[#171717]">Loading Quiz Questions...</p>
-        </div>
+      <div className="min-h-[calc(100vh-9rem)] flex flex-col items-center justify-center p-4 bg-[#F0F8F8]">
+        <div className="w-12 h-12 border-4 border-[#5DA9B0] border-t-[#2C6A74] rounded-full animate-spin mb-4" />
+        <p className="text-sm font-bold text-[#0F3238]">Loading Exam Session...</p>
       </div>
     );
   }
 
   if (isBlocked) {
     return (
-      <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center p-4 bg-[#EDEEE9]">
-        <div className="bg-[#F5EBE1] rounded-[36px] p-8 sm:p-10 shadow-warm-lg max-w-lg w-full border border-red-200 text-center space-y-6">
-          <div className="w-16 h-16 rounded-3xl bg-red-100 text-red-600 flex items-center justify-center mx-auto border border-red-200">
-            <Lock className="w-8 h-8 stroke-[2.5]" />
+      <div className="min-h-[calc(100vh-9rem)] py-12 px-4 bg-[#F0F8F8] flex items-center justify-center">
+        <div className="max-w-md w-full bg-white rounded-[32px] p-8 shadow-ocean-lg border border-red-200 text-center space-y-6">
+          <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto border border-red-200 shadow-sm">
+            <Lock className="w-10 h-10" />
           </div>
 
           <div className="space-y-2">
             <span className="px-3.5 py-1 bg-red-100 text-red-700 text-xs font-black uppercase tracking-wider rounded-full border border-red-200 inline-block">
               Examination Security Violation
             </span>
-            <h2 className="text-2xl font-black text-[#171717] tracking-tight">
+            <h2 className="text-2xl font-black text-[#0F3238] tracking-tight">
               QUIZ ATTEMPT LOCKED
             </h2>
           </div>
 
-          <div className="bg-[#EDEEE9] p-5 rounded-2xl border border-[#D6CCC2] text-left space-y-3">
+          <div className="bg-[#F0F8F8] p-5 rounded-2xl border border-[#AEE3E0] text-left space-y-3">
             <div className="flex items-center space-x-2 text-red-600 font-bold text-xs uppercase tracking-wide">
               <ShieldAlert className="w-4 h-4 text-red-600" />
               <span>Tab Switch / Window Blur Detected</span>
             </div>
-            <p className="text-xs text-[#68635F] leading-relaxed">
+            <p className="text-xs text-[#2C6A74] leading-relaxed">
               You switched browser tabs, minimized the window, or lost active screen focus during the examination. Under official competition anti-cheating regulations, your quiz session has been immediately suspended.
             </p>
           </div>
 
-          <div className="p-4 bg-[#E3D5CA] rounded-2xl border border-[#D6CCC2] text-xs font-semibold text-[#171717] space-y-1">
+          <div className="p-4 bg-[#D0EFEF] rounded-2xl border border-[#AEE3E0] text-xs font-semibold text-[#0F3238] space-y-1">
             <p className="font-bold">Need assistance to resume?</p>
-            <p className="text-[#68635F]">
+            <p className="text-[#2C6A74]">
               Please inform your exam invigilator / quiz administrator. They can verify and unblock your access directly from the admin dashboard.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="w-full py-3.5 bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] rounded-2xl text-xs font-extrabold border border-[#E3D5CA] shadow-warm-sm transition-all"
-          >
-            Check Status / Refresh
-          </button>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handleCheckStatusRefresh}
+              disabled={checkStatusLoading}
+              className="w-full py-3.5 bg-[#2C6A74] hover:bg-[#23555E] text-white rounded-2xl text-xs font-extrabold border border-[#23555E] shadow-ocean-sm transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+            >
+              {checkStatusLoading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Checking Status...</span>
+                </div>
+              ) : (
+                <span>Check Status / Refresh</span>
+              )}
+            </button>
+
+            {checkStatusMessage && (
+              <div className="p-3 bg-red-50 text-red-700 text-xs font-bold rounded-2xl border border-red-200">
+                {checkStatusMessage}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -289,14 +404,14 @@ export default function QuizPage() {
 
   if (error || questions.length === 0) {
     return (
-      <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center p-4 bg-[#EDEEE9]">
-        <div className="bg-[#F5EBE1] rounded-[32px] p-8 shadow-warm-md max-w-md w-full border border-[#E3D5CA] text-center space-y-4">
-          <AlertTriangle className="w-12 h-12 text-[#68635F] mx-auto" />
-          <h3 className="text-lg font-bold text-[#171717]">Quiz Error</h3>
-          <p className="text-xs text-[#68635F]">{error || 'No questions available.'}</p>
+      <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center p-4 bg-[#F0F8F8]">
+        <div className="bg-white rounded-[32px] p-8 shadow-ocean-md max-w-md w-full border border-[#AEE3E0] text-center space-y-4">
+          <AlertTriangle className="w-12 h-12 text-[#2C6A74] mx-auto" />
+          <h3 className="text-lg font-bold text-[#0F3238]">Quiz Error</h3>
+          <p className="text-xs text-[#2C6A74]">{error || 'No questions available.'}</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-6 py-2.5 bg-[#D7BDB0] text-[#171717] rounded-2xl text-xs font-bold hover:bg-[#C5A99B] border border-[#E3D5CA]"
+            className="px-6 py-2.5 bg-[#2C6A74] text-white rounded-2xl text-xs font-bold hover:bg-[#23555E] border border-[#23555E]"
           >
             Retry Loading
           </button>
@@ -313,31 +428,31 @@ export default function QuizPage() {
   const progressPct = Math.round((answeredCount / totalCount) * 100);
 
   return (
-    <div className="min-h-[calc(100vh-9rem)] py-8 px-4 sm:px-6 lg:px-8 bg-[#EDEEE9] flex flex-col justify-between max-w-7xl mx-auto space-y-6">
+    <div className="min-h-[calc(100vh-9rem)] py-8 px-4 sm:px-6 lg:px-8 bg-[#F0F8F8] flex flex-col justify-between max-w-7xl mx-auto space-y-6">
       
       {/* Top Header Bar */}
-      <div className="bg-[#F5EBE1] rounded-[28px] p-4 shadow-warm-sm border border-[#E3D5CA] flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-white rounded-[28px] p-4 shadow-ocean-sm border border-[#AEE3E0] flex flex-col sm:flex-row items-center justify-between gap-4">
         
         {/* Left: Progress info */}
         <div className="space-y-1 text-center sm:text-left">
-          <span className="text-xs font-bold text-[#171717] uppercase tracking-wider">
+          <span className="text-xs font-bold text-[#0F3238] uppercase tracking-wider">
             Question {currentIndex + 1} of {totalCount}
           </span>
-          <p className="text-xs text-[#68635F]">
-            Answered: <strong className="text-[#171717]">{answeredCount} / {totalCount}</strong>
+          <p className="text-xs text-[#2C6A74]">
+            Answered: <strong className="text-[#0F3238]">{answeredCount} / {totalCount}</strong>
             <span className="ml-2 text-gray-400">({remainingCount} remaining)</span>
           </p>
         </div>
 
         {/* Center: Progress Bar */}
         <div className="w-full sm:w-1/3 space-y-1">
-          <div className="flex justify-between text-[11px] font-semibold text-[#171717]">
+          <div className="flex justify-between text-[11px] font-semibold text-[#0F3238]">
             <span>Completion</span>
             <span>{progressPct}%</span>
           </div>
-          <div className="w-full bg-[#EDEEE9] h-2.5 rounded-full overflow-hidden border border-[#D6CCC2]">
+          <div className="w-full bg-[#F0F8F8] h-2.5 rounded-full overflow-hidden border border-[#AEE3E0]">
             <div
-              className="bg-[#D7BDB0] h-full transition-all duration-300 rounded-full"
+              className="bg-[#2C6A74] h-full transition-all duration-300 rounded-full"
               style={{ width: `${progressPct}%` }}
             />
           </div>
@@ -345,15 +460,15 @@ export default function QuizPage() {
 
         {/* Right: Timer & Action Buttons */}
         <div className="flex items-center space-x-2 sm:space-x-3">
-          <div className="flex items-center space-x-2 bg-[#E3D5CA] px-3.5 py-2 rounded-2xl border border-[#D6CCC2]">
-            <Clock className="w-4 h-4 text-[#171717]" />
-            <span className="text-xs font-semibold text-[#171717]">Time:</span>
-            <span className="text-sm font-mono font-extrabold text-[#171717]">{formatTime(timeLeft)}</span>
+          <div className="flex items-center space-x-2 bg-[#AEE3E0] px-3.5 py-2 rounded-2xl border border-[#5DA9B0]/30">
+            <Clock className="w-4 h-4 text-[#0F3238]" />
+            <span className="text-xs font-semibold text-[#0F3238]">Time:</span>
+            <span className="text-sm font-mono font-extrabold text-[#0F3238]">{formatTime(timeLeft)}</span>
           </div>
 
           <button
             onClick={() => setShowReviewModal(true)}
-            className="px-3 py-2 rounded-2xl bg-[#E3D5CA] hover:bg-[#D6CCC2] text-[#171717] text-xs font-bold flex items-center space-x-1.5 border border-[#D6CCC2] transition-colors cursor-pointer"
+            className="px-3 py-2 rounded-2xl bg-[#D0EFEF] hover:bg-[#AEE3E0] text-[#2C6A74] text-xs font-bold flex items-center space-x-1.5 border border-[#AEE3E0] transition-colors cursor-pointer"
             title="Review All Answers"
           >
             <Eye className="w-4 h-4" />
@@ -362,7 +477,7 @@ export default function QuizPage() {
 
           <button
             onClick={() => setShowMobileDrawer(true)}
-            className="md:hidden px-3.5 py-2 rounded-2xl bg-[#D7BDB0] text-[#171717] text-xs font-bold flex items-center space-x-1.5 border border-[#E3D5CA]"
+            className="md:hidden px-3.5 py-2 rounded-2xl bg-[#2C6A74] text-white text-xs font-bold flex items-center space-x-1.5 border border-[#23555E]"
           >
             <Menu className="w-4 h-4" />
           </button>
@@ -376,13 +491,13 @@ export default function QuizPage() {
         {/* LEFT AREA: 8 Columns Question & Options */}
         <div className="md:col-span-8 space-y-6">
           
-          <div className="bg-[#F5EBE1] rounded-[32px] p-6 sm:p-8 shadow-warm-md border border-[#E3D5CA] space-y-6">
+          <div className="bg-white rounded-[32px] p-6 sm:p-8 shadow-ocean-md border border-[#AEE3E0] space-y-6">
             
             <div className="space-y-2">
-              <span className="inline-block px-3 py-1 bg-[#E3D5CA] text-[#171717] text-xs font-bold rounded-xl border border-[#D6CCC2]">
+              <span className="inline-block px-3 py-1 bg-[#D0EFEF] text-[#2C6A74] text-xs font-bold rounded-xl border border-[#AEE3E0]">
                 QUESTION {currentIndex + 1}
               </span>
-              <h3 className="text-base sm:text-xl font-bold text-[#171717] leading-relaxed">
+              <h3 className="text-base sm:text-xl font-bold text-[#0F3238] leading-relaxed">
                 {currentQ.question}
               </h3>
             </div>
@@ -403,25 +518,25 @@ export default function QuizPage() {
                     onClick={() => handleSelectOption(currentQ.id, opt.key)}
                     className={`w-full text-left p-4 sm:p-5 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
                       isSelected
-                        ? 'bg-[#E3D5CA] border-[#D7BDB0] ring-2 ring-[#D7BDB0] shadow-warm-sm font-semibold'
-                        : 'bg-[#EDEEE9] border-[#D6CCC2] hover:bg-[#E3D5CA]/50 text-[#171717]'
+                        ? 'bg-[#D0EFEF] border-[#2C6A74] ring-2 ring-[#2C6A74] shadow-ocean-sm font-semibold'
+                        : 'bg-[#F0F8F8] border-[#AEE3E0] hover:bg-[#D0EFEF]/50 text-[#0F3238]'
                     }`}
                   >
                     <div className="flex items-center space-x-4">
                       <span
                         className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold transition-colors ${
                           isSelected
-                            ? 'bg-[#D7BDB0] text-[#171717] border border-[#E3D5CA]'
-                            : 'bg-[#F5EBE1] text-[#171717] border border-[#D6CCC2]'
+                            ? 'bg-[#2C6A74] text-white border border-[#23555E]'
+                            : 'bg-white text-[#2C6A74] border border-[#AEE3E0]'
                         }`}
                       >
                         {opt.key}
                       </span>
-                      <span className="text-sm sm:text-base font-medium text-[#171717]">{opt.label}</span>
+                      <span className="text-sm sm:text-base font-medium text-[#0F3238]">{opt.label}</span>
                     </div>
 
                     {isSelected && (
-                      <div className="w-6 h-6 rounded-full bg-[#D7BDB0] text-[#171717] flex items-center justify-center border border-[#E3D5CA]">
+                      <div className="w-6 h-6 rounded-full bg-[#2C6A74] text-white flex items-center justify-center border border-[#23555E]">
                         <Check className="w-4 h-4 stroke-[3]" />
                       </div>
                     )}
@@ -438,7 +553,7 @@ export default function QuizPage() {
               type="button"
               onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
               disabled={currentIndex === 0}
-              className="py-3 px-5 bg-[#F5EBE1] hover:bg-[#E3D5CA] text-[#171717] text-xs sm:text-sm font-bold rounded-2xl border border-[#E3D5CA] shadow-warm-sm transition-all flex items-center space-x-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="py-3 px-5 bg-white hover:bg-[#D0EFEF] text-[#0F3238] text-xs sm:text-sm font-bold rounded-2xl border border-[#AEE3E0] shadow-ocean-sm transition-all flex items-center space-x-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>Previous</span>
@@ -447,7 +562,7 @@ export default function QuizPage() {
             <button
               type="button"
               onClick={() => setShowReviewModal(true)}
-              className="py-3 px-5 bg-[#E3D5CA] hover:bg-[#D6CCC2] text-[#171717] text-xs sm:text-sm font-bold rounded-2xl border border-[#D6CCC2] shadow-warm-sm transition-all flex items-center space-x-2"
+              className="py-3 px-5 bg-[#D0EFEF] hover:bg-[#AEE3E0] text-[#2C6A74] text-xs sm:text-sm font-bold rounded-2xl border border-[#AEE3E0] shadow-ocean-sm transition-all flex items-center space-x-2"
             >
               <Eye className="w-4 h-4" />
               <span>Review All ({answeredCount}/{totalCount})</span>
@@ -457,7 +572,7 @@ export default function QuizPage() {
               <button
                 type="button"
                 onClick={() => setCurrentIndex((prev) => Math.min(totalCount - 1, prev + 1))}
-                className="py-3 px-5 bg-[#F5EBE1] hover:bg-[#E3D5CA] text-[#171717] text-xs sm:text-sm font-bold rounded-2xl border border-[#E3D5CA] shadow-warm-sm transition-all flex items-center space-x-2"
+                className="py-3 px-5 bg-white hover:bg-[#D0EFEF] text-[#0F3238] text-xs sm:text-sm font-bold rounded-2xl border border-[#AEE3E0] shadow-ocean-sm transition-all flex items-center space-x-2"
               >
                 <span>Next</span>
                 <ChevronRight className="w-4 h-4" />
@@ -469,10 +584,10 @@ export default function QuizPage() {
               type="button"
               onClick={handleAttemptSubmit}
               disabled={!isAllAnswered}
-              className={`py-3 px-6 text-xs sm:text-sm font-extrabold rounded-2xl shadow-warm-md transition-all flex items-center space-x-2 border ${
+              className={`py-3 px-6 text-xs sm:text-sm font-extrabold rounded-2xl shadow-ocean-md transition-all flex items-center space-x-2 border ${
                 isAllAnswered
-                  ? 'bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] border-[#E3D5CA] cursor-pointer'
-                  : 'bg-[#D6CCC2] text-[#68635F] border-gray-300 opacity-60 cursor-not-allowed'
+                  ? 'bg-[#2C6A74] hover:bg-[#23555E] text-white border-[#23555E] cursor-pointer'
+                  : 'bg-gray-200 text-gray-400 border-gray-300 opacity-60 cursor-not-allowed'
               }`}
             >
               <Send className="w-4 h-4" />
@@ -484,20 +599,20 @@ export default function QuizPage() {
 
         {/* RIGHT AREA: 4 Columns Question Navigator Panel (Desktop) */}
         <div className="hidden md:block md:col-span-4">
-          <div className="bg-[#F5EBE1] rounded-[32px] p-6 shadow-warm-md border border-[#E3D5CA] space-y-6 sticky top-28">
+          <div className="bg-white rounded-[32px] p-6 shadow-ocean-md border border-[#AEE3E0] space-y-6 sticky top-28">
             
-            <div className="border-b border-[#E3D5CA] pb-4">
-              <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#171717]">
+            <div className="border-b border-[#AEE3E0] pb-4">
+              <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#0F3238]">
                 QUESTION NAVIGATOR
               </h4>
               <div className="grid grid-cols-2 gap-2 text-xs pt-3">
-                <div className="bg-[#EDEEE9] p-2.5 rounded-xl border border-[#D6CCC2]">
-                  <p className="text-[10px] text-[#68635F] uppercase font-bold">Answered</p>
-                  <p className="text-base font-extrabold text-[#171717]">{answeredCount} / {totalCount}</p>
+                <div className="bg-[#F0F8F8] p-2.5 rounded-xl border border-[#AEE3E0]">
+                  <p className="text-[10px] text-[#2C6A74] uppercase font-bold">Answered</p>
+                  <p className="text-base font-extrabold text-[#0F3238]">{answeredCount} / {totalCount}</p>
                 </div>
-                <div className="bg-[#EDEEE9] p-2.5 rounded-xl border border-[#D6CCC2]">
-                  <p className="text-[10px] text-[#68635F] uppercase font-bold">Remaining</p>
-                  <p className="text-base font-extrabold text-[#68635F]">{remainingCount}</p>
+                <div className="bg-[#F0F8F8] p-2.5 rounded-xl border border-[#AEE3E0]">
+                  <p className="text-[10px] text-[#2C6A74] uppercase font-bold">Remaining</p>
+                  <p className="text-base font-extrabold text-[#2C6A74]">{remainingCount}</p>
                 </div>
               </div>
             </div>
@@ -515,15 +630,15 @@ export default function QuizPage() {
                     onClick={() => setCurrentIndex(idx)}
                     className={`h-11 rounded-xl text-xs font-bold flex items-center justify-center transition-all cursor-pointer border ${
                       isCurrent
-                        ? 'bg-[#D7BDB0] text-[#171717] border-[#171717] ring-2 ring-[#D7BDB0] shadow-warm-sm font-black'
+                        ? 'bg-[#2C6A74] text-white border-[#2C6A74] ring-2 ring-[#2C6A74] shadow-ocean-sm font-black'
                         : isAnswered
-                        ? 'bg-[#E3D5CA] text-[#171717] border-[#D6CCC2]'
-                        : 'bg-[#EDEEE9] text-[#68635F] border-[#D6CCC2] hover:bg-[#E3D5CA]/40'
+                        ? 'bg-[#AEE3E0] text-[#0F3238] border-[#5DA9B0]/40'
+                        : 'bg-[#F0F8F8] text-[#2C6A74] border-[#AEE3E0] hover:bg-[#D0EFEF]'
                     }`}
                   >
                     {isAnswered ? (
                       <span className="flex items-center space-x-0.5">
-                        <Check className="w-3.5 h-3.5 stroke-[3] text-[#171717]" />
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
                       </span>
                     ) : (
                       <span>{idx + 1}</span>
@@ -534,17 +649,17 @@ export default function QuizPage() {
             </div>
 
             {/* Legend */}
-            <div className="pt-2 border-t border-[#E3D5CA] grid grid-cols-3 gap-2 text-[10px] text-[#68635F] font-semibold">
+            <div className="pt-2 border-t border-[#AEE3E0] grid grid-cols-3 gap-2 text-[10px] text-[#2C6A74] font-semibold">
               <div className="flex items-center space-x-1">
-                <div className="w-3 h-3 rounded-md bg-[#D7BDB0] border border-[#171717]" />
+                <div className="w-3 h-3 rounded-md bg-[#2C6A74] border border-[#2C6A74]" />
                 <span>Current</span>
               </div>
               <div className="flex items-center space-x-1">
-                <div className="w-3 h-3 rounded-md bg-[#E3D5CA] border border-[#D6CCC2]" />
+                <div className="w-3 h-3 rounded-md bg-[#AEE3E0] border border-[#5DA9B0]/40" />
                 <span>Answered</span>
               </div>
               <div className="flex items-center space-x-1">
-                <div className="w-3 h-3 rounded-md bg-[#EDEEE9] border border-[#D6CCC2]" />
+                <div className="w-3 h-3 rounded-md bg-[#F0F8F8] border border-[#AEE3E0]" />
                 <span>Pending</span>
               </div>
             </div>
@@ -557,23 +672,23 @@ export default function QuizPage() {
       {/* MOBILE BOTTOM DRAWER */}
       {showMobileDrawer && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-end justify-center md:hidden">
-          <div className="bg-[#F5EBE1] rounded-t-[32px] w-full max-h-[80vh] p-6 shadow-warm-lg border-t border-[#E3D5CA] space-y-5 overflow-y-auto">
+          <div className="bg-white rounded-t-[32px] w-full max-h-[80vh] p-6 shadow-ocean-lg border-t border-[#AEE3E0] space-y-5 overflow-y-auto">
             
-            <div className="flex items-center justify-between border-b border-[#E3D5CA] pb-3">
-              <h4 className="text-sm font-extrabold uppercase tracking-wider text-[#171717]">
+            <div className="flex items-center justify-between border-b border-[#AEE3E0] pb-3">
+              <h4 className="text-sm font-extrabold uppercase tracking-wider text-[#0F3238]">
                 QUESTIONS NAVIGATOR
               </h4>
               <button
                 onClick={() => setShowMobileDrawer(false)}
-                className="p-1 rounded-full hover:bg-[#E3D5CA]"
+                className="p-1 rounded-full hover:bg-[#D0EFEF]"
               >
-                <X className="w-5 h-5 text-[#171717]" />
+                <X className="w-5 h-5 text-[#0F3238]" />
               </button>
             </div>
 
-            <div className="flex justify-between text-xs text-[#68635F] font-semibold">
-              <span>Answered: <strong className="text-[#171717]">{answeredCount} / {totalCount}</strong></span>
-              <span>Remaining: <strong className="text-[#171717]">{remainingCount}</strong></span>
+            <div className="flex justify-between text-xs text-[#2C6A74] font-semibold">
+              <span>Answered: <strong className="text-[#0F3238]">{answeredCount} / {totalCount}</strong></span>
+              <span>Remaining: <strong className="text-[#0F3238]">{remainingCount}</strong></span>
             </div>
 
             <div className="grid grid-cols-5 gap-3">
@@ -591,10 +706,10 @@ export default function QuizPage() {
                     }}
                     className={`h-12 rounded-xl text-xs font-bold flex items-center justify-center border ${
                       isCurrent
-                        ? 'bg-[#D7BDB0] text-[#171717] border-[#171717] ring-2 ring-[#D7BDB0]'
+                        ? 'bg-[#2C6A74] text-white border-[#2C6A74] ring-2 ring-[#2C6A74]'
                         : isAnswered
-                        ? 'bg-[#E3D5CA] text-[#171717] border-[#D6CCC2]'
-                        : 'bg-[#EDEEE9] text-[#68635F] border-[#D6CCC2]'
+                        ? 'bg-[#AEE3E0] text-[#0F3238] border-[#5DA9B0]/40'
+                        : 'bg-[#F0F8F8] text-[#2C6A74] border-[#AEE3E0]'
                     }`}
                   >
                     {isAnswered ? `✓ ${idx + 1}` : idx + 1}
@@ -607,23 +722,23 @@ export default function QuizPage() {
         </div>
       )}
 
-      {/* REVIEW ALL ANSWERS MODAL (Scrollable list with Change Answer buttons) */}
+      {/* REVIEW ALL ANSWERS MODAL */}
       {showReviewModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#F5EBE1] rounded-[36px] max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-warm-lg border border-[#E3D5CA]">
+          <div className="bg-white rounded-[36px] max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-ocean-lg border border-[#AEE3E0]">
             
-            <div className="bg-[#D7BDB0] p-6 text-[#171717] flex items-center justify-between border-b border-[#E3D5CA]">
+            <div className="bg-[#2C6A74] p-6 text-white flex items-center justify-between border-b border-[#23555E]">
               <div>
                 <h3 className="text-xl font-black uppercase tracking-tight">Review All Questions & Answers</h3>
-                <p className="text-xs text-[#68635F] mt-0.5">
+                <p className="text-xs text-[#D0EFEF] mt-0.5">
                   Verify your choices. Click "Change Answer" next to any question to edit.
                 </p>
               </div>
               <button
                 onClick={() => setShowReviewModal(false)}
-                className="p-1.5 rounded-full hover:bg-[#E3D5CA]"
+                className="p-1.5 rounded-full hover:bg-white/10 text-white"
               >
-                <X className="w-5 h-5 text-[#171717]" />
+                <X className="w-5 h-5 text-white" />
               </button>
             </div>
 
@@ -639,13 +754,13 @@ export default function QuizPage() {
                     key={q.id}
                     className={`p-5 rounded-2xl border text-xs sm:text-sm space-y-3 ${
                       selectedKey
-                        ? 'bg-[#EDEEE9] border-[#D6CCC2]'
+                        ? 'bg-[#F0F8F8] border-[#AEE3E0]'
                         : 'bg-amber-50 border-amber-200'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1">
-                        <span className="font-bold text-[#171717]">
+                        <span className="font-bold text-[#0F3238]">
                           Q{idx + 1}. {q.question}
                         </span>
                       </div>
@@ -653,7 +768,7 @@ export default function QuizPage() {
                       <button
                         type="button"
                         onClick={() => handleJumpToQuestion(idx)}
-                        className="px-3 py-1.5 bg-[#E3D5CA] hover:bg-[#D7BDB0] text-[#171717] rounded-xl text-xs font-bold border border-[#D6CCC2] flex items-center space-x-1 shrink-0 transition-colors cursor-pointer"
+                        className="px-3 py-1.5 bg-[#D0EFEF] hover:bg-[#AEE3E0] text-[#2C6A74] rounded-xl text-xs font-bold border border-[#AEE3E0] flex items-center space-x-1 shrink-0 transition-colors cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                         <span>{selectedKey ? 'Change Answer' : 'Answer Now'}</span>
@@ -662,11 +777,11 @@ export default function QuizPage() {
 
                     <div className="pt-1">
                       {selectedKey ? (
-                        <div className="p-2.5 bg-[#E3D5CA]/60 rounded-xl border border-[#D6CCC2] flex items-center justify-between">
-                          <span className="text-xs font-semibold text-[#171717]">
+                        <div className="p-2.5 bg-[#AEE3E0]/40 rounded-xl border border-[#AEE3E0] flex items-center justify-between">
+                          <span className="text-xs font-semibold text-[#0F3238]">
                             Selected Choice: <strong>Option {selectedKey}</strong> — {selectedText}
                           </span>
-                          <Check className="w-4 h-4 text-[#171717] stroke-[3]" />
+                          <Check className="w-4 h-4 text-[#2C6A74] stroke-[3]" />
                         </div>
                       ) : (
                         <p className="text-xs text-amber-700 font-semibold">
@@ -680,11 +795,11 @@ export default function QuizPage() {
             </div>
 
             {/* Modal Bottom Action Bar */}
-            <div className="p-5 bg-[#E3D5CA] border-t border-[#D6CCC2] flex items-center justify-between gap-4">
+            <div className="p-5 bg-[#F0F8F8] border-t border-[#AEE3E0] flex items-center justify-between gap-4">
               <button
                 type="button"
                 onClick={() => setShowReviewModal(false)}
-                className="px-6 py-3 bg-[#F5EBE1] hover:bg-[#EDEEE9] text-[#171717] rounded-2xl text-xs font-bold border border-[#D6CCC2]"
+                className="px-6 py-3 bg-white hover:bg-[#D0EFEF] text-[#0F3238] rounded-2xl text-xs font-bold border border-[#AEE3E0]"
               >
                 Make Changes
               </button>
@@ -696,10 +811,10 @@ export default function QuizPage() {
                   handleAttemptSubmit();
                 }}
                 disabled={!isAllAnswered}
-                className={`px-8 py-3 rounded-2xl text-xs font-extrabold border shadow-warm-sm flex items-center space-x-2 ${
+                className={`px-8 py-3 rounded-2xl text-xs font-extrabold border shadow-ocean-sm flex items-center space-x-2 ${
                   isAllAnswered
-                    ? 'bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] border-[#E3D5CA] cursor-pointer'
-                    : 'bg-[#D6CCC2] text-[#68635F] border-gray-300 opacity-60 cursor-not-allowed'
+                    ? 'bg-[#2C6A74] hover:bg-[#23555E] text-white border-[#23555E] cursor-pointer'
+                    : 'bg-gray-200 text-gray-400 border-gray-300 opacity-60 cursor-not-allowed'
                 }`}
               >
                 <Send className="w-4 h-4" />
@@ -714,15 +829,15 @@ export default function QuizPage() {
       {/* UNANSWERED QUESTION POPUP MODAL */}
       {showUnansweredModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#F5EBE1] rounded-[32px] max-w-md w-full p-8 shadow-warm-lg border border-[#E3D5CA] space-y-5 text-center">
+          <div className="bg-white rounded-[32px] max-w-md w-full p-8 shadow-ocean-lg border border-[#AEE3E0] space-y-5 text-center">
             
-            <div className="w-14 h-14 rounded-full bg-[#E3D5CA] text-[#171717] flex items-center justify-center mx-auto border border-[#D6CCC2]">
+            <div className="w-14 h-14 rounded-full bg-[#D0EFEF] text-[#2C6A74] flex items-center justify-center mx-auto border border-[#AEE3E0]">
               <AlertTriangle className="w-7 h-7" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-black text-[#171717] uppercase">Complete Your Quiz</h3>
-              <p className="text-sm font-semibold text-[#171717]">
+              <h3 className="text-xl font-black text-[#0F3238] uppercase">Complete Your Quiz</h3>
+              <p className="text-sm font-semibold text-[#0F3238]">
                 {remainingCount} question{remainingCount > 1 ? 's are' : ' is'} still unanswered.
               </p>
               
@@ -734,14 +849,14 @@ export default function QuizPage() {
                       setCurrentIndex(item.index - 1);
                       setShowUnansweredModal(false);
                     }}
-                    className="px-3 py-1 bg-[#D7BDB0] text-[#171717] text-xs font-bold rounded-lg cursor-pointer hover:bg-[#C5A99B] border border-[#E3D5CA]"
+                    className="px-3 py-1 bg-[#2C6A74] text-white text-xs font-bold rounded-lg cursor-pointer hover:bg-[#23555E] border border-[#23555E]"
                   >
                     Q{item.index}
                   </span>
                 ))}
               </div>
 
-              <p className="text-xs text-[#68635F]">
+              <p className="text-xs text-[#2C6A74]">
                 Answer every question before submitting your attempt.
               </p>
             </div>
@@ -750,7 +865,7 @@ export default function QuizPage() {
               <button
                 type="button"
                 onClick={() => setShowUnansweredModal(false)}
-                className="w-1/2 py-3 bg-[#EDEEE9] text-[#171717] rounded-2xl text-xs font-bold border border-[#D6CCC2]"
+                className="w-1/2 py-3 bg-[#F0F8F8] text-[#0F3238] rounded-2xl text-xs font-bold border border-[#AEE3E0]"
               >
                 Cancel
               </button>
@@ -758,7 +873,7 @@ export default function QuizPage() {
               <button
                 type="button"
                 onClick={handleJumpToFirstUnanswered}
-                className="w-1/2 py-3 bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] rounded-2xl text-xs font-extrabold border border-[#E3D5CA] shadow-warm-sm"
+                className="w-1/2 py-3 bg-[#2C6A74] hover:bg-[#23555E] text-white rounded-2xl text-xs font-extrabold border border-[#23555E] shadow-ocean-sm"
               >
                 Go to Unanswered
               </button>
@@ -771,18 +886,18 @@ export default function QuizPage() {
       {/* CONFIRMATION SUBMIT MODAL */}
       {showSubmitModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#F5EBE1] rounded-[32px] max-w-md w-full p-8 shadow-warm-lg border border-[#E3D5CA] space-y-5 text-center">
+          <div className="bg-white rounded-[32px] max-w-md w-full p-8 shadow-ocean-lg border border-[#AEE3E0] space-y-5 text-center">
             
-            <div className="w-14 h-14 rounded-full bg-[#D7BDB0] text-[#171717] flex items-center justify-center mx-auto border border-[#E3D5CA]">
+            <div className="w-14 h-14 rounded-full bg-[#2C6A74] text-white flex items-center justify-center mx-auto border border-[#23555E]">
               <CheckCircle2 className="w-7 h-7" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-black text-[#171717] uppercase">Submit Your Quiz?</h3>
-              <p className="text-sm font-semibold text-[#171717]">
+              <h3 className="text-xl font-black text-[#0F3238] uppercase">Submit Your Quiz?</h3>
+              <p className="text-sm font-semibold text-[#0F3238]">
                 You have answered all {totalCount} questions.
               </p>
-              <p className="text-xs text-[#68635F]">
+              <p className="text-xs text-[#2C6A74]">
                 Once submitted, your answers cannot be changed.
               </p>
             </div>
@@ -794,7 +909,7 @@ export default function QuizPage() {
                   setShowSubmitModal(false);
                   setShowReviewModal(true);
                 }}
-                className="w-1/2 py-3 bg-[#EDEEE9] text-[#171717] rounded-2xl text-xs font-bold border border-[#D6CCC2]"
+                className="w-1/2 py-3 bg-[#F0F8F8] text-[#0F3238] rounded-2xl text-xs font-bold border border-[#AEE3E0]"
               >
                 Review Answers
               </button>
@@ -803,12 +918,94 @@ export default function QuizPage() {
                 type="button"
                 onClick={handleFinalSubmit}
                 disabled={submitting}
-                className="w-1/2 py-3 bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] rounded-2xl text-xs font-extrabold border border-[#E3D5CA] shadow-warm-sm"
+                className="w-1/2 py-3 bg-[#2C6A74] hover:bg-[#23555E] text-white rounded-2xl text-xs font-extrabold border border-[#23555E] shadow-ocean-sm"
               >
                 {submitting ? 'Submitting...' : 'Submit Quiz'}
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* TAB SWITCH WARNING MODAL (WARNING 1 OF 2) */}
+      {showWarningModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] max-w-md w-full p-8 shadow-ocean-lg border-2 border-amber-300 space-y-5 text-center animate-fadeIn">
+            
+            <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto border border-amber-300 shadow-sm">
+              <AlertTriangle className="w-9 h-9 text-amber-600" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="px-3.5 py-1 bg-amber-100 text-amber-800 text-xs font-black uppercase tracking-wider rounded-full border border-amber-300 inline-block">
+                Security Warning (1 of 2)
+              </span>
+              <h3 className="text-xl font-black text-[#0F3238] uppercase">
+                Tab Switch Detected!
+              </h3>
+              <p className="text-xs text-[#2C6A74] font-semibold leading-relaxed">
+                {warningMessage}
+              </p>
+            </div>
+
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-800 text-left space-y-1">
+              <p className="font-extrabold uppercase text-[10px] tracking-wider text-amber-900">Important Policy:</p>
+              <p>You have <strong>1 warning remaining</strong>. Switching tabs or leaving active screen focus one more time will immediately lock your examination access.</p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowWarningModal(false)}
+                className="w-full py-3.5 bg-[#2C6A74] hover:bg-[#23555E] text-white rounded-2xl text-xs font-black border border-[#23555E] shadow-ocean-sm transition-all cursor-pointer uppercase tracking-wider"
+              >
+                I Understand — Resume Exam
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN LOCK OVERLAY MODAL */}
+      {showFullscreenLockModal && (
+        <div className="fixed inset-0 z-[100] bg-[#0F3238] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[36px] max-w-lg w-full p-8 shadow-2xl border-4 border-[#2C6A74] space-y-6 text-center animate-fadeIn">
+            <div className="w-20 h-20 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto border-2 border-red-300 shadow-md">
+              <Lock className="w-10 h-10" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="px-4 py-1.5 bg-red-100 text-red-800 text-xs font-black uppercase tracking-wider rounded-full border border-red-300 inline-block">
+                Security Enforced
+              </span>
+              <h3 className="text-2xl font-black text-[#0F3238] uppercase tracking-tight">
+                FULLSCREEN MODE REQUIRED
+              </h3>
+              <p className="text-xs text-[#2C6A74] font-semibold leading-relaxed">
+                You exited full-screen mode or pressed the Esc key. Examination security regulations mandate that all question content remain hidden until full-screen display is restored.
+              </p>
+            </div>
+
+            <div className="p-4 bg-[#F0F8F8] rounded-2xl border border-[#AEE3E0] text-xs text-[#0F3238] text-left space-y-2">
+              <div className="flex items-center space-x-2 text-[#2C6A74] font-bold uppercase text-[11px]">
+                <ShieldAlert className="w-4 h-4 text-[#2C6A74]" />
+                <span>Anti-Cheating Policy</span>
+              </div>
+              <p className="text-xs text-[#2C6A74]">
+                Leaving full-screen mode during an examination is logged as a potential security event. Click below to return to full-screen mode immediately.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleReenterFullscreen}
+              className="w-full py-4 bg-[#2C6A74] hover:bg-[#23555E] text-white rounded-2xl text-sm font-black border border-[#23555E] shadow-ocean-lg transition-all cursor-pointer uppercase tracking-wider flex items-center justify-center space-x-2"
+            >
+              <Lock className="w-4 h-4" />
+              <span>RE-ENTER FULLSCREEN MODE TO RESUME EXAM</span>
+            </button>
           </div>
         </div>
       )}

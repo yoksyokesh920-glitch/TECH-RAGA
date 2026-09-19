@@ -359,6 +359,107 @@ router.delete('/questions/:id', (req, res) => {
   return res.json({ message: 'Question deleted successfully.' });
 });
 
+router.post('/questions/import', (req, res) => {
+  const { questions } = req.body;
+  if (!questions || !Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ error: 'No valid questions provided for import.' });
+  }
+
+  const insertStmt = db.prepare(`
+    INSERT INTO questions (question, option_a, option_b, option_c, option_d, correct_answer, marks)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const importMany = db.transaction((qs) => {
+    let count = 0;
+    for (const q of qs) {
+      if (q && q.question && q.option_a && q.option_b && q.option_c && q.option_d) {
+        insertStmt.run(
+          q.question.trim(),
+          q.option_a.trim(),
+          q.option_b.trim(),
+          q.option_c.trim(),
+          q.option_d.trim(),
+          (q.correct_answer || 'A').toString().trim().toUpperCase(),
+          q.marks || 1
+        );
+        count++;
+      }
+    }
+    return count;
+  });
+
+  try {
+    const insertedCount = importMany(questions);
+    return res.status(201).json({
+      message: `Successfully imported ${insertedCount} questions.`,
+      count: insertedCount
+    });
+  } catch (err) {
+    console.error('Import questions error:', err);
+    return res.status(500).json({ error: 'Failed to import questions to database.' });
+  }
+});
+
+router.post('/participant', (req, res) => {
+  const { name, phone, college, email } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required.' });
+  if (!phone || !phone.trim()) return res.status(400).json({ error: 'Phone is required.' });
+  if (!college || !college.trim()) return res.status(400).json({ error: 'College is required.' });
+
+  let cleanPhone = phone.trim().replace(/[\s\-\+]/g, '');
+  if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) cleanPhone = cleanPhone.slice(2);
+  if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) cleanPhone = cleanPhone.slice(1);
+  if (!/^[0-9]{10}$/.test(cleanPhone)) {
+    return res.status(400).json({ error: 'Phone number must be a valid 10-digit mobile number.' });
+  }
+
+  const existing = db.prepare('SELECT id FROM participants WHERE phone = ?').get(cleanPhone);
+  if (existing) {
+    return res.status(400).json({ error: 'Participant with this phone number already exists.' });
+  }
+
+  const createCandidate = db.transaction(() => {
+    const partResult = db.prepare(`
+      INSERT INTO participants (name, phone, college, email, access_status)
+      VALUES (?, ?, ?, ?, 'ALLOWED')
+    `).run(name.trim(), cleanPhone, college.trim(), email ? email.trim() : null);
+
+    const pId = partResult.lastInsertRowid;
+    db.prepare(`
+      INSERT INTO quiz_attempts (participant_id, attempt_number, status)
+      VALUES (?, 1, 'REGISTERED')
+    `).run(pId);
+
+    return pId;
+  });
+
+  try {
+    const pId = createCandidate();
+    return res.status(201).json({ message: 'Candidate added successfully.', id: pId });
+  } catch (err) {
+    console.error('Candidate addition error:', err);
+    return res.status(500).json({ error: 'Failed to add candidate.' });
+  }
+});
+
+router.delete('/participant/:id', (req, res) => {
+  const { id } = req.params;
+  const participant = db.prepare('SELECT * FROM participants WHERE id = ?').get(id);
+  if (!participant) return res.status(404).json({ error: 'Participant not found.' });
+
+  db.transaction(() => {
+    const attempts = db.prepare('SELECT id FROM quiz_attempts WHERE participant_id = ?').all(id);
+    for (const att of attempts) {
+      db.prepare('DELETE FROM answers WHERE attempt_id = ?').run(att.id);
+    }
+    db.prepare('DELETE FROM quiz_attempts WHERE participant_id = ?').run(id);
+    db.prepare('DELETE FROM participants WHERE id = ?').run(id);
+  })();
+
+  return res.json({ message: 'Candidate deleted successfully.' });
+});
+
 // 9. EXPORT CSV (Deduplicated per participant)
 router.get('/export', (req, res) => {
   const rows = db.prepare(`
@@ -366,6 +467,7 @@ router.get('/export', (req, res) => {
       p.name,
       p.phone,
       p.college,
+      p.email,
       a.attempt_number,
       a.score,
       a.total_marks,
@@ -382,7 +484,7 @@ router.get('/export', (req, res) => {
     ORDER BY p.id ASC
   `).all();
 
-  let csvContent = 'Name,Phone,College,Attempt Number,Score,Total Marks,Percentage,Time Taken (s),Submitted At,Status\n';
+  let csvContent = 'Name,Phone,College,Email,Attempt Number,Score,Total Marks,Percentage,Time Taken (s),Submitted At,Status\n';
 
   rows.forEach(r => {
     const score = r.score !== null ? r.score : 0;
@@ -392,9 +494,10 @@ router.get('/export', (req, res) => {
     const subAt = r.submitted_at ? `"${r.submitted_at}"` : 'N/A';
     const name = `"${(r.name || '').replace(/"/g, '""')}"`;
     const college = `"${(r.college || '').replace(/"/g, '""')}"`;
+    const email = `"${(r.email || '').replace(/"/g, '""')}"`;
     const attNum = r.attempt_number || 1;
 
-    csvContent += `${name},${r.phone},${college},${attNum},${score},${tMarks},${pct}%,${timeTaken},${subAt},${r.status}\n`;
+    csvContent += `${name},${r.phone},${college},${email},${attNum},${score},${tMarks},${pct}%,${timeTaken},${subAt},${r.status}\n`;
   });
 
   res.setHeader('Content-Type', 'text/csv');

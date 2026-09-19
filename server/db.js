@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,7 +7,73 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const dbPath = path.join(__dirname, 'quiz_database.db');
-const db = new Database(dbPath);
+
+class DatabaseWrapper {
+  constructor(filepath) {
+    this._db = new DatabaseSync(filepath);
+  }
+
+  pragma(str) {
+    if (str.startsWith('table_info(')) {
+      return this._db.prepare(`PRAGMA ${str}`).all();
+    }
+    return this._db.exec(`PRAGMA ${str}`);
+  }
+
+  exec(sql) {
+    return this._db.exec(sql);
+  }
+
+  prepare(sql) {
+    const stmt = this._db.prepare(sql);
+    try { stmt.setAllowBareNamedParameters(true); } catch (e) {}
+    
+    return {
+      run: (...args) => {
+        let params = args;
+        if (args.length === 1 && Array.isArray(args[0])) params = args[0];
+        const res = (params.length === 1 && typeof params[0] === 'object' && !Array.isArray(params[0]) && params[0] !== null)
+          ? stmt.run(params[0])
+          : stmt.run(...params);
+        return {
+          changes: res.changes,
+          lastInsertRowid: typeof res.lastInsertRowid === 'bigint' ? Number(res.lastInsertRowid) : res.lastInsertRowid
+        };
+      },
+      get: (...args) => {
+        let params = args;
+        if (args.length === 1 && Array.isArray(args[0])) params = args[0];
+        return (params.length === 1 && typeof params[0] === 'object' && !Array.isArray(params[0]) && params[0] !== null)
+          ? stmt.get(params[0])
+          : stmt.get(...params);
+      },
+      all: (...args) => {
+        let params = args;
+        if (args.length === 1 && Array.isArray(args[0])) params = args[0];
+        return (params.length === 1 && typeof params[0] === 'object' && !Array.isArray(params[0]) && params[0] !== null)
+          ? stmt.all(params[0])
+          : stmt.all(...params);
+      }
+    };
+  }
+
+  transaction(fn) {
+    const self = this;
+    return function(...args) {
+      self._db.exec('BEGIN IMMEDIATE');
+      try {
+        const result = fn.apply(this, args);
+        self._db.exec('COMMIT');
+        return result;
+      } catch (err) {
+        self._db.exec('ROLLBACK');
+        throw err;
+      }
+    };
+  }
+}
+
+const db = new DatabaseWrapper(dbPath);
 
 // Enable WAL mode
 db.pragma('journal_mode = WAL');
@@ -40,6 +106,11 @@ export function initDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  try {
+    db.exec('ALTER TABLE participants ADD COLUMN email TEXT');
+  } catch (e) {
+    // Column already exists
+  }
 
   // 2. QUESTIONS
   db.exec(`
@@ -66,10 +137,16 @@ export function initDatabase() {
       score INTEGER DEFAULT 0,
       total_marks INTEGER DEFAULT 0,
       time_taken INTEGER DEFAULT 0,
+      tab_switch_count INTEGER DEFAULT 0,
       status TEXT DEFAULT 'REGISTERED',
       FOREIGN KEY (participant_id) REFERENCES participants(id)
     )
   `);
+  try {
+    db.exec('ALTER TABLE quiz_attempts ADD COLUMN tab_switch_count INTEGER DEFAULT 0');
+  } catch (e) {
+    // Column already exists
+  }
 
   // 4. ANSWERS
   db.exec(`
@@ -102,7 +179,8 @@ export function initDatabase() {
       value TEXT NOT NULL
     )
   `);
-  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('quiz_duration_minutes', '30')").run();
+  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('quiz_duration_minutes', '15')").run();
+  db.prepare("UPDATE settings SET value = '15' WHERE key = 'quiz_duration_minutes' AND value = '30'").run();
 
   // Seed Admin user if none exists
   const adminCount = db.prepare('SELECT COUNT(*) as count FROM admin_users').get().count;

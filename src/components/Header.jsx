@@ -16,7 +16,7 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-[#D7BDB0] text-[#171717] shadow-warm-sm border-b border-[#E3D5CA] sticky top-0 z-40">
+    <header className="bg-[#2C6A74] text-white shadow-ocean-sm border-b border-[#23555E] sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         
         {/* Left: Back Arrow < and Brand Header */}
@@ -24,7 +24,7 @@ export default function Header() {
           {showBack && (
             <button
               onClick={() => navigate(-1)}
-              className="p-2 rounded-2xl bg-[#F5EBE1] hover:bg-[#E3D5CA] text-[#171717] border border-[#E3D5CA] transition-all shadow-sm flex items-center justify-center cursor-pointer"
+              className="p-2 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-all shadow-sm flex items-center justify-center cursor-pointer"
               title="Go Back"
             >
               <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
@@ -32,14 +32,14 @@ export default function Header() {
           )}
 
           <Link to="/" className="flex items-center space-x-3.5 group">
-            <div className="w-11 h-11 rounded-2xl bg-[#F5EBE1] flex items-center justify-center border border-[#E3D5CA] shadow-sm group-hover:scale-105 transition-transform">
-              <Award className="w-6 h-6 text-[#171717]" />
+            <div className="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 shadow-sm group-hover:scale-105 transition-transform">
+              <Award className="w-6 h-6 text-[#D0EFEF]" />
             </div>
             <div>
-              <h1 className="font-bold text-lg sm:text-xl tracking-tight text-[#171717] leading-tight">
+              <h1 className="font-bold text-lg sm:text-xl tracking-tight text-white leading-tight">
                 {isAdminPath ? 'Quiz Admin Portal' : 'Inter-College Quiz Competition'}
               </h1>
-              <p className="text-xs text-[#68635F] font-medium">
+              <p className="text-xs text-[#D0EFEF]/80 font-medium">
                 {isAdminPath ? 'Event Management System' : 'Academic Excellence Championship 2026'}
               </p>
             </div>
@@ -53,8 +53,8 @@ export default function Header() {
               to="/admin/dashboard"
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 location.pathname === '/admin/dashboard'
-                  ? 'bg-[#F5EBE1] text-[#171717] shadow-sm'
-                  : 'text-[#68635F] hover:bg-[#E3D5CA]/50 hover:text-[#171717]'
+                  ? 'bg-white text-[#2C6A74] shadow-sm font-bold'
+                  : 'text-[#D0EFEF] hover:bg-white/10 hover:text-white'
               }`}
             >
               <LayoutDashboard className="w-4 h-4" />
@@ -65,8 +65,8 @@ export default function Header() {
               to="/admin/results"
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 location.pathname === '/admin/results' || location.pathname === '/admin/participants'
-                  ? 'bg-[#F5EBE1] text-[#171717] shadow-sm'
-                  : 'text-[#68635F] hover:bg-[#E3D5CA]/50 hover:text-[#171717]'
+                  ? 'bg-white text-[#2C6A74] shadow-sm font-bold'
+                  : 'text-[#D0EFEF] hover:bg-white/10 hover:text-white'
               }`}
             >
               <Users className="w-4 h-4" />
@@ -77,8 +77,8 @@ export default function Header() {
               to="/admin/colleges"
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 location.pathname === '/admin/colleges'
-                  ? 'bg-[#F5EBE1] text-[#171717] shadow-sm'
-                  : 'text-[#68635F] hover:bg-[#E3D5CA]/50 hover:text-[#171717]'
+                  ? 'bg-white text-[#2C6A74] shadow-sm font-bold'
+                  : 'text-[#D0EFEF] hover:bg-white/10 hover:text-white'
               }`}
             >
               <GraduationCap className="w-4 h-4" />
@@ -89,8 +89,8 @@ export default function Header() {
               to="/admin/questions"
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
                 location.pathname === '/admin/questions'
-                  ? 'bg-[#F5EBE1] text-[#171717] shadow-sm'
-                  : 'text-[#68635F] hover:bg-[#E3D5CA]/50 hover:text-[#171717]'
+                  ? 'bg-white text-[#2C6A74] shadow-sm font-bold'
+                  : 'text-[#D0EFEF] hover:bg-white/10 hover:text-white'
               }`}
             >
               <HelpCircle className="w-4 h-4" />
@@ -99,7 +99,7 @@ export default function Header() {
 
             <button
               onClick={handleLogout}
-              className="ml-3 flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#E3D5CA] text-[#171717] hover:bg-[#D6CCC2] transition-colors border border-[#D6CCC2]"
+              className="ml-3 flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#AEE3E0] text-[#2C6A74] hover:bg-[#D0EFEF] transition-colors border border-[#AEE3E0]"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Logout</span>
@@ -112,7 +112,7 @@ export default function Header() {
           <div className="md:hidden flex items-center">
             <button
               onClick={handleLogout}
-              className="p-2.5 rounded-xl bg-[#E3D5CA] text-[#171717]"
+              className="p-2.5 rounded-xl bg-white/10 text-white"
             >
               <LogOut className="w-5 h-5" />
             </button>
@@ -122,28 +122,28 @@ export default function Header() {
 
       {/* Sub-header navigation bar for mobile Admin */}
       {isAdminPath && token && (
-        <div className="md:hidden bg-[#E3D5CA] px-4 py-2 flex items-center justify-around text-xs border-t border-[#D6CCC2]">
+        <div className="md:hidden bg-[#23555E] px-4 py-2 flex items-center justify-around text-xs border-t border-[#1C434A]">
           <Link
             to="/admin/dashboard"
-            className={`py-1 ${location.pathname === '/admin/dashboard' ? 'font-bold text-[#171717]' : 'text-[#68635F]'}`}
+            className={`py-1 ${location.pathname === '/admin/dashboard' ? 'font-bold text-white' : 'text-[#D0EFEF]'}`}
           >
             Dashboard
           </Link>
           <Link
             to="/admin/results"
-            className={`py-1 ${location.pathname === '/admin/results' ? 'font-bold text-[#171717]' : 'text-[#68635F]'}`}
+            className={`py-1 ${location.pathname === '/admin/results' ? 'font-bold text-white' : 'text-[#D0EFEF]'}`}
           >
             Results
           </Link>
           <Link
             to="/admin/colleges"
-            className={`py-1 ${location.pathname === '/admin/colleges' ? 'font-bold text-[#171717]' : 'text-[#68635F]'}`}
+            className={`py-1 ${location.pathname === '/admin/colleges' ? 'font-bold text-white' : 'text-[#D0EFEF]'}`}
           >
             Colleges
           </Link>
           <Link
             to="/admin/questions"
-            className={`py-1 ${location.pathname === '/admin/questions' ? 'font-bold text-[#171717]' : 'text-[#68635F]'}`}
+            className={`py-1 ${location.pathname === '/admin/questions' ? 'font-bold text-white' : 'text-[#D0EFEF]'}`}
           >
             Questions
           </Link>

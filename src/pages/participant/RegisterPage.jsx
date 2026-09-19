@@ -107,7 +107,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-9rem)] py-12 px-4 sm:px-6 lg:px-8 bg-[#EDEEE9] flex flex-col justify-center">
+    <div className="min-h-[calc(100vh-9rem)] py-12 px-4 sm:px-6 lg:px-8 bg-[#F0F8F8] flex flex-col justify-center">
       <div className="max-w-5xl mx-auto w-full">
         
         {/* Two-Column Grid Layout */}
@@ -115,35 +115,35 @@ export default function RegisterPage() {
           
           {/* LEFT: 5 Columns Editorial Title & Info */}
           <div className="md:col-span-5 space-y-6">
-            <span className="inline-block px-3 py-1 bg-[#D7BDB0] text-[#171717] text-xs font-semibold rounded-full border border-[#E3D5CA]">
+            <span className="inline-block px-3 py-1 bg-[#2C6A74] text-white text-xs font-semibold rounded-full border border-[#23555E]">
               Registration
             </span>
 
-            <h2 className="text-4xl sm:text-5xl font-black text-[#171717] tracking-tight uppercase leading-tight">
+            <h2 className="text-4xl sm:text-5xl font-black text-[#0F3238] tracking-tight uppercase leading-tight">
               BEFORE YOU<br />
-              <span className="text-[#68635F] font-light">BEGIN</span>
+              <span className="text-[#2C6A74] font-light">BEGIN</span>
             </h2>
 
-            <p className="text-sm text-[#68635F] leading-relaxed">
+            <p className="text-sm text-[#2C6A74] leading-relaxed">
               Please enter your full details accurately. Your phone number serves as your unique verification key for this examination.
             </p>
 
-            <div className="p-4 rounded-2xl bg-[#E3D5CA]/50 border border-[#D6CCC2] text-xs text-[#171717] space-y-2">
+            <div className="p-4 rounded-2xl bg-[#D0EFEF] border border-[#AEE3E0] text-xs text-[#0F3238] space-y-2">
               <div className="flex items-center space-x-2 font-bold">
-                <CheckCircle2 className="w-4 h-4 text-[#68635F]" />
+                <CheckCircle2 className="w-4 h-4 text-[#2C6A74]" />
                 <span>Single attempt per participant policy</span>
               </div>
-              <p className="text-[#68635F]">Ensure browser tab remains open during the 30-minute quiz window.</p>
+              <p className="text-[#2C6A74]">Ensure browser tab remains open during the quiz window.</p>
             </div>
           </div>
 
-          {/* RIGHT: 7 Columns Warm Cream Registration Card */}
+          {/* RIGHT: 7 Columns Ocean Registration Card */}
           <div className="md:col-span-7">
-            <div className="bg-[#F5EBE1] rounded-[32px] p-8 shadow-warm-md border border-[#E3D5CA] space-y-6">
+            <div className="bg-white rounded-[32px] p-8 shadow-ocean-md border border-[#AEE3E0] space-y-6">
               
-              <div className="border-b border-[#E3D5CA] pb-4">
-                <h3 className="text-xl font-bold text-[#171717]">Participant Information</h3>
-                <p className="text-xs text-[#68635F] mt-0.5">All mandatory fields must be completed.</p>
+              <div className="border-b border-[#AEE3E0] pb-4">
+                <h3 className="text-xl font-bold text-[#0F3238]">Participant Information</h3>
+                <p className="text-xs text-[#2C6A74] mt-0.5">Please fill in your details to continue.</p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
@@ -156,8 +156,8 @@ export default function RegisterPage() {
                 )}
 
                 {/* Field: Full Name */}
-                <div className="bg-[#EDEEE9] p-3.5 rounded-2xl border border-[#D6CCC2] focus-within:ring-2 focus-within:ring-[#D7BDB0] transition-all">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#68635F] mb-1">
+                <div className="bg-[#F0F8F8] p-3.5 rounded-2xl border border-[#AEE3E0] focus-within:ring-2 focus-within:ring-[#5DA9B0] transition-all">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#2C6A74] mb-1">
                     FULL NAME *
                   </label>
                   <input
@@ -167,13 +167,13 @@ export default function RegisterPage() {
                     onChange={handleChange}
                     placeholder="Enter your full name"
                     required
-                    className="w-full bg-transparent text-sm font-semibold text-[#171717] focus:outline-none placeholder-gray-400"
+                    className="w-full bg-transparent text-sm font-semibold text-[#0F3238] focus:outline-none placeholder-gray-400"
                   />
                 </div>
 
                 {/* Field: Phone Number */}
-                <div className="bg-[#EDEEE9] p-3.5 rounded-2xl border border-[#D6CCC2] focus-within:ring-2 focus-within:ring-[#D7BDB0] transition-all">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#68635F] mb-1">
+                <div className="bg-[#F0F8F8] p-3.5 rounded-2xl border border-[#AEE3E0] focus-within:ring-2 focus-within:ring-[#5DA9B0] transition-all">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#2C6A74] mb-1">
                     PHONE NUMBER *
                   </label>
                   <input
@@ -184,14 +184,14 @@ export default function RegisterPage() {
                     maxLength={10}
                     placeholder="Enter 10-digit mobile number"
                     required
-                    className="w-full bg-transparent text-sm font-semibold text-[#171717] focus:outline-none placeholder-gray-400"
+                    className="w-full bg-transparent text-sm font-semibold text-[#0F3238] focus:outline-none placeholder-gray-400"
                   />
-                  <p className="text-[10px] text-[#68635F] mt-1">Must be an exact 10-digit mobile number.</p>
+                  <p className="text-[10px] text-[#2C6A74] mt-1">Must be an exact 10-digit mobile number.</p>
                 </div>
 
                 {/* Field: College Name */}
-                <div className="bg-[#EDEEE9] p-3.5 rounded-2xl border border-[#D6CCC2] focus-within:ring-2 focus-within:ring-[#D7BDB0] transition-all">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#68635F] mb-1">
+                <div className="bg-[#F0F8F8] p-3.5 rounded-2xl border border-[#AEE3E0] focus-within:ring-2 focus-within:ring-[#5DA9B0] transition-all">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#2C6A74] mb-1">
                     COLLEGE NAME *
                   </label>
                   <input
@@ -201,14 +201,14 @@ export default function RegisterPage() {
                     onChange={handleChange}
                     placeholder="Enter your college or university"
                     required
-                    className="w-full bg-transparent text-sm font-semibold text-[#171717] focus:outline-none placeholder-gray-400"
+                    className="w-full bg-transparent text-sm font-semibold text-[#0F3238] focus:outline-none placeholder-gray-400"
                   />
                 </div>
 
-                {/* Field: Email Address (Optional) */}
-                <div className="bg-[#EDEEE9] p-3.5 rounded-2xl border border-[#D6CCC2] focus-within:ring-2 focus-within:ring-[#D7BDB0] transition-all">
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#68635F] mb-1">
-                    EMAIL ADDRESS <span className="font-normal text-[9px] text-gray-400">(OPTIONAL)</span>
+                {/* Field: Email Address */}
+                <div className="bg-[#F0F8F8] p-3.5 rounded-2xl border border-[#AEE3E0] focus-within:ring-2 focus-within:ring-[#5DA9B0] transition-all">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#2C6A74] mb-1">
+                    EMAIL ADDRESS
                   </label>
                   <input
                     type="email"
@@ -216,7 +216,7 @@ export default function RegisterPage() {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="student@college.edu"
-                    className="w-full bg-transparent text-sm font-semibold text-[#171717] focus:outline-none placeholder-gray-400"
+                    className="w-full bg-transparent text-sm font-semibold text-[#0F3238] focus:outline-none placeholder-gray-400"
                   />
                 </div>
 
@@ -224,14 +224,14 @@ export default function RegisterPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-4 bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] font-bold rounded-2xl shadow-warm-sm transition-all flex items-center justify-center space-x-2 border border-[#E3D5CA] disabled:opacity-50"
+                  className="w-full py-4 bg-[#2C6A74] hover:bg-[#23555E] text-white font-bold rounded-2xl shadow-ocean-sm transition-all flex items-center justify-center space-x-2 border border-[#23555E] disabled:opacity-50"
                 >
                   {loading ? (
                     <span>Processing Registration...</span>
                   ) : (
                     <>
                       <span>Continue</span>
-                      <ArrowRight className="w-4 h-4 text-[#171717]" />
+                      <ArrowRight className="w-4 h-4 text-white" />
                     </>
                   )}
                 </button>
@@ -248,18 +248,18 @@ export default function RegisterPage() {
       {/* ALREADY REGISTERED MODAL */}
       {showAlreadyRegisteredModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#F5EBE1] rounded-[32px] max-w-md w-full p-8 shadow-warm-lg border border-[#E3D5CA] text-center space-y-5 animate-fadeIn">
+          <div className="bg-white rounded-[32px] max-w-md w-full p-8 shadow-ocean-lg border border-[#AEE3E0] text-center space-y-5 animate-fadeIn">
             
-            <div className="w-16 h-16 rounded-full bg-[#D7BDB0] text-[#171717] flex items-center justify-center mx-auto shadow-warm-sm">
+            <div className="w-16 h-16 rounded-full bg-[#2C6A74] text-white flex items-center justify-center mx-auto shadow-ocean-sm">
               <ShieldAlert className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-2xl font-black text-[#171717] uppercase">Already Registered</h3>
-              <p className="text-sm font-semibold text-[#171717]">
+              <h3 className="text-2xl font-black text-[#0F3238] uppercase">Already Registered</h3>
+              <p className="text-sm font-semibold text-[#0F3238]">
                 This phone number has already been used for this quiz.
               </p>
-              <p className="text-xs text-[#68635F] pt-1">
+              <p className="text-xs text-[#2C6A74] pt-1">
                 Please contact the event organizers if you need another attempt.
               </p>
             </div>
@@ -268,7 +268,7 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={() => setShowAlreadyRegisteredModal(false)}
-                className="w-full py-3.5 bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] text-sm font-bold rounded-2xl shadow-warm-sm transition-all border border-[#E3D5CA]"
+                className="w-full py-3.5 bg-[#2C6A74] hover:bg-[#23555E] text-white text-sm font-bold rounded-2xl shadow-ocean-sm transition-all border border-[#23555E]"
               >
                 Close
               </button>
