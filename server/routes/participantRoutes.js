@@ -3,7 +3,7 @@ import db from '../db.js';
 
 const router = express.Router();
 
-// Helper function: clean and validate 10-digit phone number
+// Helper function: clean and validate 10-digit Indian phone number
 function cleanAndValidatePhone(rawPhone) {
   if (!rawPhone || typeof rawPhone !== 'string') return null;
   let digits = rawPhone.replace(/[\s\-\+]/g, '');
@@ -13,7 +13,7 @@ function cleanAndValidatePhone(rawPhone) {
   if (digits.length === 11 && digits.startsWith('0')) {
     digits = digits.slice(1);
   }
-  if (/^[0-9]{10}$/.test(digits)) {
+  if (/^[6-9][0-9]{9}$/.test(digits)) {
     return digits;
   }
   return null;
@@ -21,7 +21,7 @@ function cleanAndValidatePhone(rawPhone) {
 
 // 1. PARTICIPANT REGISTRATION & PHONE ACCESS CONTROL
 router.post('/register', (req, res) => {
-  const { name, phone, college, email } = req.body;
+  const { name, phone, college } = req.body;
 
   // Validations
   if (!name || typeof name !== 'string' || !name.trim()) {
@@ -30,7 +30,7 @@ router.post('/register', (req, res) => {
 
   const cleanPhone = cleanAndValidatePhone(phone);
   if (!cleanPhone) {
-    return res.status(400).json({ error: 'Please enter a valid 10-digit phone number.' });
+    return res.status(400).json({ error: 'Please enter a valid 10-digit Indian phone number starting with 6, 7, 8, or 9.' });
   }
 
   if (!college || typeof college !== 'string' || !college.trim()) {
@@ -39,7 +39,6 @@ router.post('/register', (req, res) => {
 
   const cleanName = name.trim();
   const cleanCollege = college.trim();
-  const cleanEmail = email ? email.trim() : null;
 
   // Check if phone already exists
   const existingPart = db.prepare('SELECT * FROM participants WHERE phone = ?').get(cleanPhone);
@@ -80,7 +79,6 @@ router.post('/register', (req, res) => {
         phone: cleanPhone,
         name: existingPart.name,
         college: existingPart.college,
-        email: existingPart.email,
         attempt_id: attemptId,
         attempt_number: newAttemptNum,
         status: 'REGISTERED'
@@ -93,7 +91,6 @@ router.post('/register', (req, res) => {
       phone: cleanPhone,
       name: existingPart.name,
       college: existingPart.college,
-      email: existingPart.email,
       attempt_id: latestAttempt ? latestAttempt.id : null,
       attempt_number: latestAttempt ? latestAttempt.attempt_number : 1,
       status: latestAttempt ? latestAttempt.status : 'REGISTERED'
@@ -103,9 +100,9 @@ router.post('/register', (req, res) => {
   // Create New Participant & Attempt #1
   const createNew = db.transaction(() => {
     const partResult = db.prepare(`
-      INSERT INTO participants (name, phone, college, email, access_status)
-      VALUES (?, ?, ?, ?, 'ALLOWED')
-    `).run(cleanName, cleanPhone, cleanCollege, cleanEmail);
+      INSERT INTO participants (name, phone, college, access_status)
+      VALUES (?, ?, ?, 'ALLOWED')
+    `).run(cleanName, cleanPhone, cleanCollege);
 
     const pId = partResult.lastInsertRowid;
 
@@ -124,7 +121,6 @@ router.post('/register', (req, res) => {
       phone: cleanPhone,
       name: cleanName,
       college: cleanCollege,
-      email: cleanEmail,
       attempt_id: attemptId,
       attempt_number: 1,
       status: 'REGISTERED'
@@ -164,7 +160,6 @@ router.get('/session/:phone', (req, res) => {
     phone: participant.phone,
     name: participant.name,
     college: participant.college,
-    email: participant.email,
     access_status: participant.access_status,
     attempt_id: latestAttempt ? latestAttempt.id : null,
     attempt_number: latestAttempt ? latestAttempt.attempt_number : 1,

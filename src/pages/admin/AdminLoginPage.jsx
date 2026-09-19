@@ -53,16 +53,16 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center px-4 py-8 bg-[#EDEEE9]">
-      <div className="max-w-md w-full bg-[#F5EBE1] rounded-[32px] shadow-warm-md overflow-hidden border border-[#E3D5CA]">
+    <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center px-4 py-8 bg-[#EBF7F7]">
+      <div className="max-w-md w-full bg-[#D0EFEF]/70 rounded-[32px] shadow-warm-md overflow-hidden border border-[#AEE3E0]">
         
-        {/* Header */}
-        <div className="bg-[#D7BDB0] p-6 text-[#171717] text-center border-b border-[#E3D5CA]">
-          <div className="w-12 h-12 bg-[#F5EBE1] rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-warm-sm border border-[#E3D5CA]">
-            <Lock className="w-6 h-6 text-[#171717]" />
+        {/* Header - Tidal Depths (#2C6A74) */}
+        <div className="bg-[#2C6A74] p-6 text-white text-center border-b border-[#5DA9B0]/30">
+          <div className="w-12 h-12 bg-[#AEE3E0] rounded-2xl flex items-center justify-center mx-auto mb-2 shadow-warm-sm border border-white/20">
+            <Lock className="w-6 h-6 text-[#2C6A74]" />
           </div>
-          <h2 className="text-xl font-bold uppercase tracking-tight">Admin Portal</h2>
-          <p className="text-xs text-[#68635F] mt-0.5">Authorized Organizers Only</p>
+          <h2 className="text-xl font-bold uppercase tracking-tight text-white">Admin Portal</h2>
+          <p className="text-xs text-[#D0EFEF] mt-0.5">Authorized Organizers Only</p>
         </div>
 
         {/* Form */}
@@ -75,12 +75,12 @@ export default function AdminLoginPage() {
             </div>
           )}
 
-          <div className="bg-[#EDEEE9] p-3 rounded-2xl border border-[#D6CCC2]">
-            <label className="block text-[10px] font-bold uppercase text-[#68635F] mb-1">
+          <div className="bg-[#EBF7F7] p-3 rounded-2xl border border-[#5DA9B0]/40 focus-within:ring-2 focus-within:ring-[#5DA9B0] transition-all">
+            <label className="block text-[10px] font-bold uppercase text-[#3D6E75] mb-1">
               USERNAME
             </label>
             <div className="relative flex items-center">
-              <User className="w-4 h-4 text-[#68635F] mr-2" />
+              <User className="w-4 h-4 text-[#5DA9B0] mr-2" />
               <input
                 type="text"
                 name="username"
@@ -88,17 +88,17 @@ export default function AdminLoginPage() {
                 onChange={handleChange}
                 placeholder="Admin username"
                 required
-                className="w-full bg-transparent text-sm font-semibold text-[#171717] focus:outline-none"
+                className="w-full bg-transparent text-sm font-semibold text-[#0F2F34] focus:outline-none placeholder:text-[#3D6E75]/50"
               />
             </div>
           </div>
 
-          <div className="bg-[#EDEEE9] p-3 rounded-2xl border border-[#D6CCC2]">
-            <label className="block text-[10px] font-bold uppercase text-[#68635F] mb-1">
+          <div className="bg-[#EBF7F7] p-3 rounded-2xl border border-[#5DA9B0]/40 focus-within:ring-2 focus-within:ring-[#5DA9B0] transition-all">
+            <label className="block text-[10px] font-bold uppercase text-[#3D6E75] mb-1">
               PASSWORD
             </label>
             <div className="relative flex items-center">
-              <KeyRound className="w-4 h-4 text-[#68635F] mr-2" />
+              <KeyRound className="w-4 h-4 text-[#5DA9B0] mr-2" />
               <input
                 type="password"
                 name="password"
@@ -106,27 +106,27 @@ export default function AdminLoginPage() {
                 onChange={handleChange}
                 placeholder="••••••••"
                 required
-                className="w-full bg-transparent text-sm font-semibold text-[#171717] focus:outline-none"
+                className="w-full bg-transparent text-sm font-semibold text-[#0F2F34] focus:outline-none placeholder:text-[#3D6E75]/50"
               />
             </div>
           </div>
 
           {/* Test Credentials */}
-          <div className="p-3 rounded-2xl bg-[#EDEEE9] border border-[#D6CCC2] text-xs text-[#68635F]">
-            <p className="font-bold text-[#171717]">Default Credentials:</p>
-            <p className="mt-0.5 font-mono">Username: <strong className="text-[#171717]">admin</strong> | Password: <strong className="text-[#171717]">admin123</strong></p>
+          <div className="p-3 rounded-2xl bg-[#EBF7F7] border border-[#AEE3E0] text-xs text-[#3D6E75]">
+            <p className="font-bold text-[#0F2F34]">Default Credentials:</p>
+            <p className="mt-0.5 font-mono">Username: <strong className="text-[#0F2F34]">admin</strong> | Password: <strong className="text-[#0F2F34]">admin123</strong></p>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] font-bold rounded-2xl shadow-warm-sm transition-all border border-[#E3D5CA] disabled:opacity-50"
+            className="w-full py-3.5 bg-[#2C6A74] hover:bg-[#22555D] text-white font-bold rounded-2xl shadow-warm-sm transition-all border border-[#5DA9B0]/30 disabled:opacity-50 cursor-pointer"
           >
             {loading ? 'Authenticating...' : 'Sign In to Dashboard'}
           </button>
 
-          <div className="flex items-center justify-center space-x-1.5 text-[11px] text-[#68635F] pt-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#171717]" />
+          <div className="flex items-center justify-center space-x-1.5 text-[11px] text-[#3D6E75] pt-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#2C6A74]" />
             <span>Encrypted Session & Password Protection</span>
           </div>
 

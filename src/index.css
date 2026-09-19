@@ -1,34 +1,49 @@
 @import "tailwindcss";
 
 @theme {
-  --color-blush: #D7BDB0;
-  --color-blush-hover: #C5A99B;
-  --color-beige: #E3D5CA;
-  --color-cream: #F5EBE1;
-  --color-cream-hover: #EBE0D5;
-  --color-taupe: #D6CCC2;
-  --color-neutral: #EDEEE9;
-  --color-text: #171717;
-  --color-muted-text: #68635F;
+  /* Ocean-Inspired Color Tokens */
+  --color-foam: #D0EFEF;
+  --color-foam-hover: #BFEEEE;
+  --color-haze: #AEE3E0;
+  --color-haze-hover: #9CD5D2;
+  --color-driftwood: #5DA9B0;
+  --color-driftwood-hover: #4C989F;
+  --color-tidal: #2C6A74;
+  --color-tidal-hover: #22555D;
+  --color-page: #EBF7F7;
+  --color-text: #0F2F34;
+  --color-muted-text: #3D6E75;
+
+  /* Legacy utility fallback mappings */
+  --color-blush: #2C6A74;
+  --color-blush-hover: #22555D;
+  --color-beige: #AEE3E0;
+  --color-cream: #D0EFEF;
+  --color-cream-hover: #BFEEEE;
+  --color-taupe: #5DA9B0;
+  --color-neutral: #EBF7F7;
 }
 
 body {
-  background-color: #EDEEE9;
-  color: #171717;
+  background-color: #EBF7F7;
+  color: #0F2F34;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   min-height: 100vh;
   margin: 0;
 }
 
-/* Custom Soft Warm Box Shadows */
+/* Custom Soft Ocean Box Shadows */
 .shadow-warm-sm {
-  box-shadow: 0 4px 14px rgba(215, 189, 176, 0.25);
+  box-shadow: 0 4px 14px rgba(44, 106, 116, 0.12);
 }
 .shadow-warm-md {
-  box-shadow: 0 10px 30px rgba(215, 189, 176, 0.35);
+  box-shadow: 0 10px 30px rgba(44, 106, 116, 0.18);
 }
 .shadow-warm-lg {
-  box-shadow: 0 20px 40px rgba(215, 189, 176, 0.45);
+  box-shadow: 0 20px 40px rgba(44, 106, 116, 0.25);
+}
+.shadow-ocean-glow {
+  box-shadow: 0 0 25px rgba(93, 169, 176, 0.35);
 }
 
 /* Custom scrollbars */
@@ -37,12 +52,12 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #EDEEE9;
+  background: #EBF7F7;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D6CCC2;
+  background: #5DA9B0;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #D7BDB0;
+  background: #2C6A74;
 }

@@ -28,7 +28,7 @@ function ProtectedAdminRoute({ children }) {
 
 export default function App() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#EDEEE9] text-[#171717] font-sans antialiased">
+    <div className="min-h-screen flex flex-col bg-[#EBF7F7] text-[#0F2F34] font-sans antialiased">
       <Header />
       <main className="flex-1">
         <Routes>

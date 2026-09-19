@@ -171,38 +171,38 @@ export default function AdminResultsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 bg-[#EDEEE9]">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 bg-[#EBF7F7]">
       
       {/* Header Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-[#171717] uppercase tracking-tight">Participant Results & Access</h2>
-          <p className="text-xs text-[#68635F]">
+          <h2 className="text-2xl font-black text-[#0F2F34] uppercase tracking-tight">Participant Results & Access</h2>
+          <p className="text-xs text-[#3D6E75]">
             Candidate scoreboard, filterable by college & status with attempt retake controls and CSV export.
           </p>
         </div>
 
         <button
           onClick={handleExportCSV}
-          className="self-start md:self-auto px-5 py-3 bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-[#E3D5CA]"
+          className="self-start md:self-auto px-5 py-3 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-[#5DA9B0]/30 cursor-pointer"
         >
-          <Download className="w-4 h-4" />
+          <Download className="w-4 h-4 text-white" />
           <span>Export CSV</span>
         </button>
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="bg-[#F5EBE1] p-4 rounded-[28px] shadow-warm-sm border border-[#E3D5CA] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="bg-[#D0EFEF]/70 p-4 rounded-[28px] shadow-warm-sm border border-[#AEE3E0] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Search */}
         <div className="relative">
-          <Search className="w-4 h-4 text-[#68635F] absolute left-3.5 top-3" />
+          <Search className="w-4 h-4 text-[#5DA9B0] absolute left-3.5 top-3" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search Name, Phone, College..."
-            className="w-full pl-9 pr-3 py-2 bg-[#EDEEE9] border border-[#D6CCC2] rounded-xl text-xs sm:text-sm text-[#171717] focus:outline-none"
+            className="w-full pl-9 pr-3 py-2 bg-[#EBF7F7] border border-[#AEE3E0] rounded-xl text-xs sm:text-sm text-[#0F2F34] focus:outline-none placeholder:text-[#3D6E75]/50"
           />
         </div>
 
@@ -211,7 +211,7 @@ export default function AdminResultsPage() {
           <select
             value={selectedCollege}
             onChange={(e) => setSelectedCollege(e.target.value)}
-            className="w-full px-3 py-2 bg-[#EDEEE9] border border-[#D6CCC2] rounded-xl text-xs sm:text-sm text-[#171717] focus:outline-none"
+            className="w-full px-3 py-2 bg-[#EBF7F7] border border-[#AEE3E0] rounded-xl text-xs sm:text-sm text-[#0F2F34] focus:outline-none"
           >
             <option value="">All Colleges</option>
             {colleges.map((c) => (
@@ -225,7 +225,7 @@ export default function AdminResultsPage() {
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="w-full px-3 py-2 bg-[#EDEEE9] border border-[#D6CCC2] rounded-xl text-xs sm:text-sm text-[#171717] focus:outline-none"
+            className="w-full px-3 py-2 bg-[#EBF7F7] border border-[#AEE3E0] rounded-xl text-xs sm:text-sm text-[#0F2F34] focus:outline-none"
           >
             <option value="">All Statuses</option>
             <option value="REGISTERED">REGISTERED</option>
@@ -238,10 +238,10 @@ export default function AdminResultsPage() {
         <div className="flex items-center space-x-2">
           <button
             onClick={() => toggleSort('score')}
-            className={`w-1/2 py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center space-x-1 transition-all ${
+            className={`w-1/2 py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               sortBy === 'score'
-                ? 'bg-[#D7BDB0] text-[#171717] border-[#E3D5CA]'
-                : 'bg-[#EDEEE9] text-[#171717] border-[#D6CCC2]'
+                ? 'bg-[#2C6A74] text-white border-[#0F2F34]'
+                : 'bg-[#EBF7F7] text-[#0F2F34] border-[#AEE3E0]'
             }`}
           >
             <span>Sort Score</span>
@@ -250,10 +250,10 @@ export default function AdminResultsPage() {
 
           <button
             onClick={() => toggleSort('submitted_at')}
-            className={`w-1/2 py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center space-x-1 transition-all ${
+            className={`w-1/2 py-2 px-3 rounded-xl text-xs font-semibold border flex items-center justify-center space-x-1 transition-all cursor-pointer ${
               sortBy === 'submitted_at'
-                ? 'bg-[#D7BDB0] text-[#171717] border-[#E3D5CA]'
-                : 'bg-[#EDEEE9] text-[#171717] border-[#D6CCC2]'
+                ? 'bg-[#2C6A74] text-white border-[#0F2F34]'
+                : 'bg-[#EBF7F7] text-[#0F2F34] border-[#AEE3E0]'
             }`}
           >
             <span>Sort Time</span>
@@ -263,12 +263,12 @@ export default function AdminResultsPage() {
 
       </div>
 
-      {/* Results Table (No Participant ID!) */}
-      <div className="bg-[#F5EBE1] rounded-[32px] shadow-warm-md border border-[#E3D5CA] overflow-hidden">
+      {/* Results Table */}
+      <div className="bg-white rounded-[32px] shadow-warm-md border border-[#AEE3E0] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[#D7BDB0] text-[#171717] text-xs font-extrabold uppercase tracking-wider border-b border-[#E3D5CA]">
+              <tr className="bg-[#2C6A74] text-white text-xs font-extrabold uppercase tracking-wider border-b border-[#5DA9B0]/30">
                 <th className="p-4 pl-6">Name</th>
                 <th className="p-4">Phone</th>
                 <th className="p-4">College</th>
@@ -281,62 +281,62 @@ export default function AdminResultsPage() {
                 <th className="p-4 text-center pr-6">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E3D5CA]/60 text-xs sm:text-sm text-[#171717]">
+            <tbody className="divide-y divide-[#AEE3E0]/60 text-xs sm:text-sm text-[#0F2F34]">
               {loading ? (
                 <tr>
-                  <td colSpan="10" className="p-8 text-center text-[#68635F]">
-                    <div className="inline-block w-6 h-6 border-2 border-[#D7BDB0] border-t-transparent rounded-full animate-spin mr-2" />
+                  <td colSpan="10" className="p-8 text-center text-[#3D6E75]">
+                    <div className="inline-block w-6 h-6 border-2 border-[#2C6A74] border-t-transparent rounded-full animate-spin mr-2" />
                     Loading records...
                   </td>
                 </tr>
               ) : results.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="p-8 text-center text-[#68635F] font-semibold">
+                  <td colSpan="10" className="p-8 text-center text-[#3D6E75] font-semibold">
                     No participant records match the query.
                   </td>
                 </tr>
               ) : (
                 results.map((r) => (
-                  <tr key={`${r.participant_db_id}-${r.attempt_id || 0}`} className="hover:bg-[#E3D5CA]/30 transition-colors">
-                    <td className="p-4 pl-6 font-bold">{r.name}</td>
-                    <td className="p-4 font-mono text-[#68635F]">{r.phone}</td>
+                  <tr key={`${r.participant_db_id}-${r.attempt_id || 0}`} className="hover:bg-[#D0EFEF]/40 transition-colors">
+                    <td className="p-4 pl-6 font-bold text-[#0F2F34]">{r.name}</td>
+                    <td className="p-4 font-mono text-[#3D6E75]">{r.phone}</td>
                     <td className="p-4">{r.college}</td>
                     <td className="p-4 text-center font-bold">#{r.attempt_number || 1}</td>
                     <td className="p-4 font-bold">
                       {r.status === 'COMPLETED' ? (
-                        <span>{r.score} <span className="text-[#68635F] font-normal text-xs">/ {r.total_marks || 10}</span></span>
+                        <span>{r.score} <span className="text-[#3D6E75] font-normal text-xs">/ {r.total_marks || 10}</span></span>
                       ) : (
                         <span className="text-gray-400 font-normal">-</span>
                       )}
                     </td>
                     <td className="p-4">
                       {r.status === 'COMPLETED' ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#E3D5CA] text-[#171717] border border-[#D6CCC2]">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#AEE3E0] text-[#0F2F34] border border-[#5DA9B0]/40">
                           {r.percentage}%
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="p-4 text-[#68635F]">
+                    <td className="p-4 text-[#3D6E75]">
                       {r.time_taken ? `${r.time_taken}s` : '-'}
                     </td>
-                    <td className="p-4 text-[#68635F] text-xs">
+                    <td className="p-4 text-[#3D6E75] text-xs">
                       {r.submitted_at ? new Date(r.submitted_at + 'Z').toLocaleString() : '-'}
                     </td>
                     <td className="p-4">
                       {r.status === 'COMPLETED' && (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-[#D7BDB0] text-[#171717] border border-[#E3D5CA]">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-[#2C6A74] text-white border border-[#5DA9B0]/30">
                           COMPLETED
                         </span>
                       )}
                       {r.status === 'IN_PROGRESS' && (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-[#AEE3E0] text-[#0F2F34] border border-[#5DA9B0]/40">
                           IN_PROGRESS
                         </span>
                       )}
                       {r.status === 'REGISTERED' && (
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-[#E3D5CA] text-[#171717]">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-[#D0EFEF] text-[#0F2F34] border border-[#AEE3E0]">
                           REGISTERED
                         </span>
                       )}
@@ -345,7 +345,7 @@ export default function AdminResultsPage() {
                       <div className="flex items-center justify-center space-x-1.5">
                         <button
                           onClick={() => handleOpenDetailModal(r.participant_db_id)}
-                          className="p-1.5 rounded-xl bg-[#EDEEE9] hover:bg-[#D7BDB0] text-[#171717] border border-[#D6CCC2] transition-colors"
+                          className="p-1.5 rounded-xl bg-[#EBF7F7] hover:bg-[#2C6A74] hover:text-white text-[#0F2F34] border border-[#AEE3E0] transition-colors cursor-pointer"
                           title="View Answer Breakdown"
                         >
                           <Eye className="w-4 h-4" />
@@ -353,18 +353,18 @@ export default function AdminResultsPage() {
 
                         <button
                           onClick={() => handleAllowRetake(r.phone)}
-                          className="p-1.5 rounded-xl bg-[#EDEEE9] hover:bg-[#E3D5CA] text-[#171717] border border-[#D6CCC2] transition-colors"
+                          className="p-1.5 rounded-xl bg-[#EBF7F7] hover:bg-[#AEE3E0] text-[#0F2F34] border border-[#AEE3E0] transition-colors cursor-pointer"
                           title="Allow Retake Attempt"
                         >
-                          <RotateCcw className="w-4 h-4" />
+                          <RotateCcw className="w-4 h-4 text-[#2C6A74]" />
                         </button>
 
                         <button
                           onClick={() => handleToggleBlock(r.phone)}
-                          className={`p-1.5 rounded-xl border transition-colors ${
+                          className={`p-1.5 rounded-xl border transition-colors cursor-pointer ${
                             r.access_status === 'BLOCKED'
                               ? 'bg-red-100 text-red-700 border-red-200'
-                              : 'bg-[#EDEEE9] text-[#68635F] border-[#D6CCC2] hover:bg-red-50'
+                              : 'bg-[#EBF7F7] text-[#3D6E75] border-[#AEE3E0] hover:bg-red-50 hover:text-red-600'
                           }`}
                           title={r.access_status === 'BLOCKED' ? 'Unblock Candidate' : 'Block Candidate'}
                         >
@@ -383,47 +383,47 @@ export default function AdminResultsPage() {
       {/* Answer Breakdown Modal */}
       {selectedCandidateId && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#F5EBE1] rounded-[32px] max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-warm-lg border border-[#E3D5CA]">
+          <div className="bg-[#D0EFEF] rounded-[32px] max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-warm-lg border border-[#AEE3E0]">
             
-            <div className="bg-[#D7BDB0] p-6 text-[#171717] flex items-center justify-between border-b border-[#E3D5CA]">
+            <div className="bg-[#2C6A74] p-6 text-white flex items-center justify-between border-b border-[#5DA9B0]/30">
               <div>
-                <h3 className="text-lg font-bold uppercase">Answer Sheet & History</h3>
-                <p className="text-xs text-[#68635F]">Candidate Profile Inspection</p>
+                <h3 className="text-lg font-bold uppercase text-white">Answer Sheet & History</h3>
+                <p className="text-xs text-[#D0EFEF]">Candidate Profile Inspection</p>
               </div>
               <button
                 onClick={() => setSelectedCandidateId(null)}
-                className="p-1.5 rounded-full hover:bg-[#E3D5CA]"
+                className="p-1.5 rounded-full hover:bg-white/20 text-white"
               >
-                <X className="w-5 h-5 text-[#171717]" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6">
               {loadingModal ? (
-                <div className="p-8 text-center text-[#68635F]">Loading data...</div>
+                <div className="p-8 text-center text-[#3D6E75]">Loading data...</div>
               ) : modalData ? (
                 <>
-                  <div className="bg-[#EDEEE9] border border-[#D6CCC2] p-4 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div className="bg-[#EBF7F7] border border-[#AEE3E0] p-4 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                     <div>
-                      <p className="text-[#68635F] uppercase font-bold text-[10px]">Name</p>
-                      <p className="font-bold text-[#171717]">{modalData.participant?.name}</p>
+                      <p className="text-[#3D6E75] uppercase font-bold text-[10px]">Name</p>
+                      <p className="font-bold text-[#0F2F34]">{modalData.participant?.name}</p>
                     </div>
                     <div>
-                      <p className="text-[#68635F] uppercase font-bold text-[10px]">Phone</p>
-                      <p className="font-bold text-[#171717]">{modalData.participant?.phone}</p>
+                      <p className="text-[#3D6E75] uppercase font-bold text-[10px]">Phone</p>
+                      <p className="font-bold text-[#0F2F34]">{modalData.participant?.phone}</p>
                     </div>
                     <div>
-                      <p className="text-[#68635F] uppercase font-bold text-[10px]">College</p>
-                      <p className="font-bold text-[#171717]">{modalData.participant?.college}</p>
+                      <p className="text-[#3D6E75] uppercase font-bold text-[10px]">College</p>
+                      <p className="font-bold text-[#0F2F34]">{modalData.participant?.college}</p>
                     </div>
                     <div>
-                      <p className="text-[#68635F] uppercase font-bold text-[10px]">Score</p>
-                      <p className="font-bold text-[#171717]">{modalData.latestAttempt?.score || 0} Marks</p>
+                      <p className="text-[#3D6E75] uppercase font-bold text-[10px]">Score</p>
+                      <p className="font-bold text-[#0F2F34]">{modalData.latestAttempt?.score || 0} Marks</p>
                     </div>
                   </div>
 
                   <div className="space-y-3">
-                    <h4 className="text-xs font-bold text-[#171717] uppercase tracking-wider">
+                    <h4 className="text-xs font-bold text-[#0F2F34] uppercase tracking-wider">
                       Question Answers ({modalData.answers?.length || 0})
                     </h4>
 
@@ -432,14 +432,14 @@ export default function AdminResultsPage() {
                         key={q.question_id}
                         className={`p-4 rounded-2xl border text-xs space-y-2 ${
                           q.is_correct === 1
-                            ? 'bg-[#E3D5CA]/50 border-emerald-300'
+                            ? 'bg-[#AEE3E0]/40 border-emerald-300'
                             : q.selected_answer
                             ? 'bg-red-50 border-red-200'
-                            : 'bg-[#EDEEE9] border-[#D6CCC2]'
+                            : 'bg-[#EBF7F7] border-[#AEE3E0]'
                         }`}
                       >
                         <div className="flex items-start justify-between">
-                          <span className="font-bold text-[#171717]">
+                          <span className="font-bold text-[#0F2F34]">
                             Q{idx + 1}. {q.question}
                           </span>
                           {q.is_correct === 1 ? (
@@ -458,10 +458,10 @@ export default function AdminResultsPage() {
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                          <p>
-                            Candidate Selected: <strong className="text-[#171717]">{q.selected_answer || 'None'}</strong>
+                          <p className="text-[#3D6E75]">
+                            Candidate Selected: <strong className="text-[#0F2F34]">{q.selected_answer || 'None'}</strong>
                           </p>
-                          <p>
+                          <p className="text-[#3D6E75]">
                             Correct Answer: <strong className="text-emerald-800">{q.correct_answer}</strong>
                           </p>
                         </div>
@@ -470,7 +470,7 @@ export default function AdminResultsPage() {
                   </div>
                 </>
               ) : (
-                <p className="text-center text-[#68635F]">No data available.</p>
+                <p className="text-center text-[#3D6E75]">No data available.</p>
               )}
             </div>
 
