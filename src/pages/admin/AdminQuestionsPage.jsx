@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, CheckCircle2, XCircle, X, AlertCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, CheckCircle2, XCircle, X, AlertCircle, Upload, FileText, FileUp, Sparkles, Check } from 'lucide-react';
 
 export default function AdminQuestionsPage() {
   const navigate = useNavigate();
@@ -21,6 +21,15 @@ export default function AdminQuestionsPage() {
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Modal & Parser State for PDF / Document Import
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [rawImportText, setRawImportText] = useState('');
+  const [parsedPreview, setParsedPreview] = useState([]);
+  const [importing, setImporting] = useState(false);
+  const [importErrorMsg, setImportErrorMsg] = useState('');
+  const [importSuccessMsg, setImportSuccessMsg] = useState('');
+  const [fileName, setFileName] = useState('');
 
   useEffect(() => {
     fetchQuestionAnalysis();
@@ -142,6 +151,169 @@ export default function AdminQuestionsPage() {
     }
   };
 
+  // Smart Document & PDF Question Parser
+  const parseDocumentText = (text) => {
+    if (!text || !text.trim()) {
+      setParsedPreview([]);
+      return;
+    }
+
+    // Attempt JSON Array parse first
+    try {
+      const json = JSON.parse(text);
+      if (Array.isArray(json)) {
+        const validJsonQs = json.filter(q => q.question && q.option_a && q.option_b).map(q => ({
+          question: String(q.question).trim(),
+          option_a: String(q.option_a || 'Option A').trim(),
+          option_b: String(q.option_b || 'Option B').trim(),
+          option_c: String(q.option_c || 'Option C').trim(),
+          option_d: String(q.option_d || 'Option D').trim(),
+          correct_answer: (q.correct_answer || 'A').toUpperCase(),
+          marks: Number(q.marks) || 1
+        }));
+        if (validJsonQs.length > 0) {
+          setParsedPreview(validJsonQs);
+          return;
+        }
+      }
+    } catch (e) {
+      // Fall through to regex text block parser
+    }
+
+    // Pattern Text Parsing
+    const lines = text.split('\n');
+    const parsedList = [];
+    let current = null;
+
+    for (let rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+
+      // Question line detection: e.g. "1. What is...", "Q1: ...", "Question 1 - ..."
+      const qMatch = line.match(/^(?:Q(?:uestion)?\s*\d+[\.\:\)]|\d+[\.\:\)])\s*(.+)/i);
+      if (qMatch) {
+        if (current && current.question && current.option_a && current.option_b) {
+          parsedList.push(current);
+        }
+        current = {
+          question: qMatch[1].trim(),
+          option_a: '',
+          option_b: '',
+          option_c: '',
+          option_d: '',
+          correct_answer: 'A',
+          marks: 1
+        };
+        continue;
+      }
+
+      if (!current) {
+        current = { question: line, option_a: '', option_b: '', option_c: '', option_d: '', correct_answer: 'A', marks: 1 };
+        continue;
+      }
+
+      const optAMatch = line.match(/^(?:A[\.\:\)]|\(A\))\s*(.+)/i);
+      const optBMatch = line.match(/^(?:B[\.\:\)]|\(B\))\s*(.+)/i);
+      const optCMatch = line.match(/^(?:C[\.\:\)]|\(C\))\s*(.+)/i);
+      const optDMatch = line.match(/^(?:D[\.\:\)]|\(D\))\s*(.+)/i);
+      const ansMatch = line.match(/^(?:Ans(?:wer)?|Correct(?:\s*Option)?|Key)[\.\:\s]*([A-D])/i);
+
+      if (optAMatch) current.option_a = optAMatch[1].trim();
+      else if (optBMatch) current.option_b = optBMatch[1].trim();
+      else if (optCMatch) current.option_c = optCMatch[1].trim();
+      else if (optDMatch) current.option_d = optDMatch[1].trim();
+      else if (ansMatch) current.correct_answer = ansMatch[1].toUpperCase();
+      else if (!current.option_a) current.question += ' ' + line;
+    }
+
+    if (current && current.question && current.option_a && current.option_b) {
+      parsedList.push(current);
+    }
+
+    const cleanedList = parsedList.map(q => ({
+      question: q.question,
+      option_a: q.option_a || 'Option A',
+      option_b: q.option_b || 'Option B',
+      option_c: q.option_c || 'Option C',
+      option_d: q.option_d || 'Option D',
+      correct_answer: (q.correct_answer || 'A').toUpperCase(),
+      marks: q.marks || 1
+    }));
+
+    setParsedPreview(cleanedList);
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    setImportErrorMsg('');
+    setImportSuccessMsg('');
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      setRawImportText(content);
+      parseDocumentText(content);
+    };
+    reader.onerror = () => {
+      setImportErrorMsg('Failed to read file contents.');
+    };
+    reader.readAsText(file);
+  };
+
+  const handleRawTextChange = (e) => {
+    const val = e.target.value;
+    setRawImportText(val);
+    parseDocumentText(val);
+  };
+
+  const handleExecuteImport = async () => {
+    if (parsedPreview.length === 0) {
+      setImportErrorMsg('No valid questions parsed from document.');
+      return;
+    }
+
+    setImporting(true);
+    setImportErrorMsg('');
+    const token = localStorage.getItem('adminToken');
+
+    try {
+      const res = await fetch('/api/admin/questions/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ questions: parsedPreview }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setImportErrorMsg(data.error || 'Import failed.');
+        setImporting(false);
+        return;
+      }
+
+      setImportSuccessMsg(`Successfully imported ${data.importedCount || parsedPreview.length} questions into Question Bank!`);
+      setImporting(false);
+      fetchQuestionAnalysis();
+
+      setTimeout(() => {
+        setShowImportModal(false);
+        setRawImportText('');
+        setParsedPreview([]);
+        setFileName('');
+        setImportSuccessMsg('');
+      }, 1500);
+    } catch (err) {
+      console.error('Execute import error:', err);
+      setImportErrorMsg('Connection error during import.');
+      setImporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center bg-[#EBF7F7]">
@@ -165,13 +337,30 @@ export default function AdminQuestionsPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="self-start md:self-auto px-5 py-3 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-[#5DA9B0]/30 cursor-pointer"
-        >
-          <Plus className="w-4 h-4 text-white" />
-          <span>Add New Question</span>
-        </button>
+        <div className="flex items-center space-x-3 self-start md:self-auto flex-wrap gap-2">
+          <button
+            onClick={() => {
+              setRawImportText('');
+              setParsedPreview([]);
+              setFileName('');
+              setImportErrorMsg('');
+              setImportSuccessMsg('');
+              setShowImportModal(true);
+            }}
+            className="px-5 py-3 bg-[#5DA9B0] hover:bg-[#489198] text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-white/20 cursor-pointer"
+          >
+            <FileUp className="w-4 h-4 text-white" />
+            <span>Import Questions (PDF/Doc)</span>
+          </button>
+
+          <button
+            onClick={handleOpenAdd}
+            className="px-5 py-3 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-[#5DA9B0]/30 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-white" />
+            <span>Add New Question</span>
+          </button>
+        </div>
       </div>
 
       {/* Question Cards Grid */}
@@ -254,7 +443,7 @@ export default function AdminQuestionsPage() {
         ))}
       </div>
 
-      {/* Question Modal */}
+      {/* Manual Add/Edit Question Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#D0EFEF] rounded-[32px] max-w-xl w-full p-6 shadow-warm-lg border border-[#AEE3E0] space-y-4">
@@ -374,6 +563,131 @@ export default function AdminQuestionsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* PDF / Document Import Questions Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#D0EFEF] rounded-[36px] max-w-3xl w-full p-6 sm:p-8 shadow-warm-lg border border-[#AEE3E0] space-y-6 max-h-[90vh] overflow-y-auto">
+            
+            <div className="flex items-center justify-between border-b border-[#AEE3E0] pb-4">
+              <div className="flex items-center space-x-2">
+                <FileUp className="w-6 h-6 text-[#2C6A74]" />
+                <div>
+                  <h3 className="text-xl font-black text-[#0F2F34] uppercase tracking-tight">Import Questions from PDF / Document</h3>
+                  <p className="text-xs text-[#3D6E75]">Upload or paste document text to parse and convert into structured questions automatically.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowImportModal(false)} className="p-1.5 rounded-full hover:bg-[#AEE3E0]">
+                <X className="w-5 h-5 text-[#0F2F34]" />
+              </button>
+            </div>
+
+            {/* Document Upload Drop Zone */}
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-[#0F2F34] uppercase">Select Document or PDF File</label>
+              <div className="border-2 border-dashed border-[#5DA9B0] bg-[#EBF7F7] rounded-3xl p-6 text-center space-y-2 relative hover:bg-[#AEE3E0]/30 transition-all">
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt,.json,.csv"
+                  onChange={handleFileChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+                <FileText className="w-10 h-10 text-[#2C6A74] mx-auto" />
+                <p className="text-xs font-bold text-[#0F2F34]">
+                  {fileName ? `Loaded: ${fileName}` : 'Click to Upload or Drag PDF / Word DOC / TXT / JSON File'}
+                </p>
+                <p className="text-[11px] text-[#3D6E75]">Supports .pdf, .doc, .docx, .txt, .json formats</p>
+              </div>
+            </div>
+
+            {/* Document Raw Text Editor / Paste Box */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-[#0F2F34] uppercase">Document Content / Direct Paste</label>
+                <span className="text-[11px] font-bold text-[#2C6A74]">
+                  Parsed Questions: {parsedPreview.length}
+                </span>
+              </div>
+              <textarea
+                value={rawImportText}
+                onChange={handleRawTextChange}
+                rows={5}
+                placeholder={`Example Format:\n1. What is CSS?\nA. Cascading Style Sheets\nB. Creative Style Sheets\nC. Computer Style Software\nD. Colorful Style Syntax\nAnswer: A`}
+                className="w-full p-4 bg-[#EBF7F7] border border-[#AEE3E0] rounded-2xl text-xs font-mono focus:outline-none text-[#0F2F34] leading-relaxed"
+              />
+            </div>
+
+            {/* Live Parsed Questions Preview Grid */}
+            {parsedPreview.length > 0 && (
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between border-b border-[#AEE3E0] pb-2">
+                  <span className="text-xs font-black uppercase text-[#0F2F34]">Parsed Questions Preview ({parsedPreview.length})</span>
+                  <span className="text-[10px] bg-[#2C6A74] text-white px-2.5 py-0.5 rounded-full font-bold">Ready to Import</span>
+                </div>
+
+                <div className="max-h-48 overflow-y-auto space-y-3 pr-1">
+                  {parsedPreview.map((q, idx) => (
+                    <div key={idx} className="bg-white p-3.5 rounded-2xl border border-[#AEE3E0] text-xs space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-bold text-[#0F2F34]">Q{idx + 1}. {q.question}</span>
+                        <span className="bg-[#AEE3E0] text-[#0F2F34] px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0">Correct: {q.correct_answer}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 text-[11px] text-[#3D6E75]">
+                        <div>A. {q.option_a}</div>
+                        <div>B. {q.option_b}</div>
+                        <div>C. {q.option_c}</div>
+                        <div>D. {q.option_d}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Feedback Messages */}
+            {importErrorMsg && (
+              <div className="p-3.5 rounded-2xl bg-red-50 text-red-700 text-xs font-bold flex items-center space-x-2 border border-red-200">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+                <span>{importErrorMsg}</span>
+              </div>
+            )}
+
+            {importSuccessMsg && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center space-x-2 border border-emerald-200">
+                <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{importSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowImportModal(false)}
+                className="w-1/3 py-3.5 bg-[#EBF7F7] hover:bg-[#AEE3E0] text-[#0F2F34] rounded-2xl text-xs font-bold border border-[#AEE3E0]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteImport}
+                disabled={parsedPreview.length === 0 || importing}
+                className="w-2/3 py-3.5 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-extrabold border border-[#5DA9B0]/30 shadow-warm-sm flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
+              >
+                {importing ? (
+                  <span>Importing Questions...</span>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-white" />
+                    <span>IMPORT ALL ({parsedPreview.length}) QUESTIONS</span>
+                  </>
+                )}
+              </button>
+            </div>
+
           </div>
         </div>
       )}

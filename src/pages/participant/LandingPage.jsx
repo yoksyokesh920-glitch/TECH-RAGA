@@ -60,11 +60,11 @@ export default function LandingPage() {
                 <div className="space-y-3 bg-white/80 p-4 rounded-2xl border border-[#AEE3E0]">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-[#3D6E75]">Questions</span>
-                    <span className="font-bold text-[#0F2F34]">30 Multiple Choice</span>
+                    <span className="font-bold text-[#0F2F34]">40 Multiple Choice</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-[#3D6E75]">Duration</span>
-                    <span className="font-bold text-[#0F2F34]">30 Minutes</span>
+                    <span className="font-bold text-[#0F2F34]">15 Minutes</span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-[#3D6E75]">Evaluation</span>
@@ -91,12 +91,12 @@ export default function LandingPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-4">
           
           <div className="bg-[#D0EFEF] p-6 rounded-[28px] border border-[#AEE3E0] shadow-warm-sm space-y-2">
-            <span className="text-3xl sm:text-4xl font-black text-[#0F2F34]">30</span>
+            <span className="text-3xl sm:text-4xl font-black text-[#0F2F34]">40</span>
             <p className="text-xs font-bold uppercase tracking-wider text-[#3D6E75]">Questions</p>
           </div>
 
           <div className="bg-[#AEE3E0] p-6 rounded-[28px] border border-[#5DA9B0]/40 shadow-warm-sm space-y-2">
-            <span className="text-3xl sm:text-4xl font-black text-[#0F2F34]">30 MIN</span>
+            <span className="text-3xl sm:text-4xl font-black text-[#0F2F34]">15 MIN</span>
             <p className="text-xs font-bold uppercase tracking-wider text-[#3D6E75]">Duration</p>
           </div>
 

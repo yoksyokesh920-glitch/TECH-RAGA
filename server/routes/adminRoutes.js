@@ -288,7 +288,49 @@ router.get('/question-analysis', (req, res) => {
   return res.json(analysis);
 });
 
-// 8. QUESTION MANAGEMENT CRUD
+// 8. QUESTION MANAGEMENT CRUD & BULK IMPORT
+router.post('/questions/import', (req, res) => {
+  const { questions } = req.body;
+  if (!questions || !Array.isArray(questions) || questions.length === 0) {
+    return res.status(400).json({ error: 'Questions array is required.' });
+  }
+
+  const insertStmt = db.prepare(`
+    INSERT INTO questions (question, option_a, option_b, option_c, option_d, correct_answer, marks)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const importTx = db.transaction(() => {
+    let count = 0;
+    for (const q of questions) {
+      if (q.question && q.option_a && q.option_b && q.option_c && q.option_d) {
+        insertStmt.run(
+          q.question.trim(),
+          q.option_a.trim(),
+          q.option_b.trim(),
+          q.option_c.trim(),
+          q.option_d.trim(),
+          (q.correct_answer || 'A').toUpperCase(),
+          q.marks || 1
+        );
+        count++;
+      }
+    }
+    return count;
+  });
+
+  try {
+    const importedCount = importTx();
+    return res.status(201).json({
+      message: `${importedCount} questions imported successfully.`,
+      importedCount
+    });
+  } catch (err) {
+    console.error('Import questions error:', err);
+    return res.status(500).json({ error: 'Failed to import questions.' });
+  }
+});
+
 router.post('/questions', (req, res) => {
   const { question, option_a, option_b, option_c, option_d, correct_answer, marks } = req.body;
 
@@ -404,7 +446,7 @@ router.get('/export', (req, res) => {
 // 10. GET & UPDATE ADMIN QUIZ SETTINGS
 router.get('/settings', (req, res) => {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'quiz_duration_minutes'").get();
-  return res.json({ quiz_duration_minutes: row ? Number(row.value) : 30 });
+  return res.json({ quiz_duration_minutes: row ? Number(row.value) : 15 });
 });
 
 router.put('/settings', (req, res) => {

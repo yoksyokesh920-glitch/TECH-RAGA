@@ -270,7 +270,7 @@ router.post('/save-answer', (req, res) => {
   return res.json({ success: true });
 });
 
-// 5b. TAB SWITCH DETECTION LOCK ENDPOINT
+// 5b. TAB SWITCH DETECTION LOCK ENDPOINT (2-CHANCE POLICY)
 router.post('/tab-switch-block', (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone is required.' });
@@ -286,16 +286,29 @@ router.post('/tab-switch-block', (req, res) => {
     LIMIT 1
   `).get(participant.id);
 
+  if (!latestAttempt) return res.status(404).json({ error: 'No active attempt found.' });
+
+  const currentCount = (latestAttempt.tab_switch_count || 0) + 1;
+
+  if (currentCount < 2) {
+    db.prepare('UPDATE quiz_attempts SET tab_switch_count = ? WHERE id = ?').run(currentCount, latestAttempt.id);
+    return res.json({
+      blocked: false,
+      warningCount: currentCount,
+      message: `Warning ${currentCount} of 2: Tab switching is strictly prohibited! Next violation will lock your exam.`
+    });
+  }
+
+  // 2nd violation -> Block candidate
   db.transaction(() => {
+    db.prepare("UPDATE quiz_attempts SET tab_switch_count = ?, status = 'BLOCKED' WHERE id = ?").run(currentCount, latestAttempt.id);
     db.prepare("UPDATE participants SET access_status = 'BLOCKED' WHERE id = ?").run(participant.id);
-    if (latestAttempt && latestAttempt.status === 'IN_PROGRESS') {
-      db.prepare("UPDATE quiz_attempts SET status = 'BLOCKED' WHERE id = ?").run(latestAttempt.id);
-    }
   })();
 
   return res.json({
     blocked: true,
-    message: 'Quiz locked due to tab switch or window blur detection.'
+    warningCount: currentCount,
+    message: 'Quiz locked due to repeated tab switching (2 warnings exceeded).'
   });
 });
 
