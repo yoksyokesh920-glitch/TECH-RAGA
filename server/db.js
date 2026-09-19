@@ -34,13 +34,47 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS participants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      phone TEXT UNIQUE NOT NULL,
+      phone TEXT NOT NULL,
       college TEXT NOT NULL,
       access_status TEXT DEFAULT 'ALLOWED',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Handle duplicate phone numbers if any exist in existing database before enforcing index
+  try {
+    const dupes = db.prepare(`
+      SELECT phone, COUNT(*) as count 
+      FROM participants 
+      WHERE access_status != 'REMOVED'
+      GROUP BY phone 
+      HAVING count > 1
+    `).all();
+
+    if (dupes.length > 0) {
+      console.log(`Found ${dupes.length} duplicate phone number groups in participants table. Resolving...`);
+      for (const d of dupes) {
+        const records = db.prepare("SELECT id FROM participants WHERE phone = ? AND access_status != 'REMOVED' ORDER BY id DESC").all(d.phone);
+        const [keepId, ...removeIds] = records.map(r => r.id);
+        if (removeIds.length > 0) {
+          const updateStmt = db.prepare("UPDATE participants SET access_status = 'REMOVED' WHERE id = ?");
+          for (const remId of removeIds) {
+            updateStmt.run(remId);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error resolving duplicate phone numbers:', e);
+  }
+
+  // Create Unique Index for active participants
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_active_phone ON participants(phone) WHERE access_status != 'REMOVED'`);
+  } catch (e) {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_participants_phone ON participants(phone)`);
+  }
 
   // 2. QUESTIONS
   db.exec(`
@@ -63,14 +97,38 @@ export function initDatabase() {
       participant_id INTEGER NOT NULL,
       attempt_number INTEGER DEFAULT 1,
       started_at DATETIME,
+      test_end_time DATETIME,
       submitted_at DATETIME,
       score INTEGER DEFAULT 0,
       total_marks INTEGER DEFAULT 0,
       time_taken INTEGER DEFAULT 0,
+      warning_count INTEGER DEFAULT 0,
+      tab_switch_count INTEGER DEFAULT 0,
+      last_warning_at DATETIME,
       status TEXT DEFAULT 'REGISTERED',
       FOREIGN KEY (participant_id) REFERENCES participants(id)
     )
   `);
+
+  // Column Migrations for existing database
+  try {
+    const qCols = db.pragma('table_info(quiz_attempts)');
+    const colNames = qCols.map(c => c.name);
+    if (!colNames.includes('test_end_time')) {
+      db.exec('ALTER TABLE quiz_attempts ADD COLUMN test_end_time DATETIME');
+    }
+    if (!colNames.includes('warning_count')) {
+      db.exec('ALTER TABLE quiz_attempts ADD COLUMN warning_count INTEGER DEFAULT 0');
+    }
+    if (!colNames.includes('tab_switch_count')) {
+      db.exec('ALTER TABLE quiz_attempts ADD COLUMN tab_switch_count INTEGER DEFAULT 0');
+    }
+    if (!colNames.includes('last_warning_at')) {
+      db.exec('ALTER TABLE quiz_attempts ADD COLUMN last_warning_at DATETIME');
+    }
+  } catch (e) {
+    console.error('Error migrating quiz_attempts columns:', e);
+  }
 
   // 4. ANSWERS
   db.exec(`

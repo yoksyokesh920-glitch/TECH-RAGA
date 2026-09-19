@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, CheckCircle2, XCircle, X, AlertCircle, Upload, FileText, FileUp, Sparkles, Check } from 'lucide-react';
+import { Plus, Edit2, Trash2, CheckCircle2, XCircle, X, AlertCircle, FileText, FileUp, Sparkles, Check } from 'lucide-react';
 
 export default function AdminQuestionsPage() {
   const navigate = useNavigate();
@@ -22,10 +22,11 @@ export default function AdminQuestionsPage() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Modal & Parser State for PDF / Document Import
+  // Modal & Parser State for Plain Text Question Import
   const [showImportModal, setShowImportModal] = useState(false);
   const [rawImportText, setRawImportText] = useState('');
   const [parsedPreview, setParsedPreview] = useState([]);
+  const [parsedErrors, setParsedErrors] = useState([]);
   const [importing, setImporting] = useState(false);
   const [importErrorMsg, setImportErrorMsg] = useState('');
   const [importSuccessMsg, setImportSuccessMsg] = useState('');
@@ -151,96 +152,137 @@ export default function AdminQuestionsPage() {
     }
   };
 
-  // Smart Document & PDF Question Parser
+  // Robust 40+ Question Plain Text Format Parser
   const parseDocumentText = (text) => {
     if (!text || !text.trim()) {
       setParsedPreview([]);
+      setParsedErrors([]);
       return;
     }
 
-    // Attempt JSON Array parse first
+    // Try JSON Array parse first
     try {
       const json = JSON.parse(text);
       if (Array.isArray(json)) {
-        const validJsonQs = json.filter(q => q.question && q.option_a && q.option_b).map(q => ({
+        const validJsonQs = json.filter(q => q.question && q.option_a && q.option_b).map((q, idx) => ({
+          questionNumber: idx + 1,
           question: String(q.question).trim(),
           option_a: String(q.option_a || 'Option A').trim(),
           option_b: String(q.option_b || 'Option B').trim(),
           option_c: String(q.option_c || 'Option C').trim(),
           option_d: String(q.option_d || 'Option D').trim(),
-          correct_answer: (q.correct_answer || 'A').toUpperCase(),
+          correct_answer: String(q.correct_answer || 'A').trim().toUpperCase(),
           marks: Number(q.marks) || 1
         }));
         if (validJsonQs.length > 0) {
           setParsedPreview(validJsonQs);
+          setParsedErrors([]);
           return;
         }
       }
     } catch (e) {
-      // Fall through to regex text block parser
+      // Fall through to regex block text parser
     }
 
-    // Pattern Text Parsing
-    const lines = text.split('\n');
-    const parsedList = [];
-    let current = null;
+    const rawLines = text.split(/\r?\n/);
+    const blocks = [];
+    let currentBlock = [];
 
-    for (let rawLine of lines) {
-      const line = rawLine.trim();
-      if (!line) continue;
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i].trim();
+      const isQHeader = /^(?:\*\*|\#\#)?\s*(?:Q(?:uestion)?\s*\d+|\d+)[\.\:\)]/i.test(line);
 
-      // Question line detection: e.g. "1. What is...", "Q1: ...", "Question 1 - ..."
-      const qMatch = line.match(/^(?:Q(?:uestion)?\s*\d+[\.\:\)]|\d+[\.\:\)])\s*(.+)/i);
-      if (qMatch) {
-        if (current && current.question && current.option_a && current.option_b) {
-          parsedList.push(current);
+      if (isQHeader && currentBlock.length > 0) {
+        blocks.push(currentBlock);
+        currentBlock = [];
+      }
+      if (line) {
+        currentBlock.push(line);
+      }
+    }
+    if (currentBlock.length > 0) {
+      blocks.push(currentBlock);
+    }
+
+    const validQuestions = [];
+    const problems = [];
+
+    blocks.forEach((blockLines, blockIdx) => {
+      let qText = '';
+      let optA = '';
+      let optB = '';
+      let optC = '';
+      let optD = '';
+      let correctAns = '';
+      let questionNumber = blockIdx + 1;
+
+      for (let line of blockLines) {
+        const cleanLine = line.replace(/\*\*/g, '').replace(/✅/g, '').trim();
+
+        // Question header
+        const qMatch = cleanLine.match(/^(?:Q(?:uestion)?\s*(\d+)[\.\:\)]|(\d+)[\.\:\)])\s*(.+)/i);
+        if (qMatch && !qText) {
+          questionNumber = parseInt(qMatch[1] || qMatch[2], 10) || (blockIdx + 1);
+          qText = qMatch[3].trim();
+          continue;
         }
-        current = {
-          question: qMatch[1].trim(),
-          option_a: '',
-          option_b: '',
-          option_c: '',
-          option_d: '',
-          correct_answer: 'A',
+
+        // Answer marker e.g. "Answer: A", "Ans: A", "Correct Answer: A"
+        const ansMatch = cleanLine.match(/^(?:Ans(?:wer)?|Correct(?:\s*Answer|\s*Option)?|Key)[\:\-\s]*([A-D])/i);
+        if (ansMatch) {
+          correctAns = ansMatch[1].toUpperCase();
+          continue;
+        }
+
+        // Options A, B, C, D
+        const optAMatch = cleanLine.match(/^(?:\(A\)|A[\)\.\:]|\bA\b[\)\.\:])\s*(.+)/i);
+        const optBMatch = cleanLine.match(/^(?:\(B\)|B[\)\.\:]|\bB\b[\)\.\:])\s*(.+)/i);
+        const optCMatch = cleanLine.match(/^(?:\(C\)|C[\)\.\:]|\bC\b[\)\.\:])\s*(.+)/i);
+        const optDMatch = cleanLine.match(/^(?:\(D\)|D[\)\.\:]|\bD\b[\)\.\:])\s*(.+)/i);
+
+        if (optAMatch) { optA = optAMatch[1].trim(); continue; }
+        if (optBMatch) { optB = optBMatch[1].trim(); continue; }
+        if (optCMatch) { optC = optCMatch[1].trim(); continue; }
+        if (optDMatch) { optD = optDMatch[1].trim(); continue; }
+
+        if (!optA && qText) {
+          qText += ' ' + cleanLine;
+        } else if (!qText) {
+          qText = cleanLine;
+        }
+      }
+
+      const blockErrors = [];
+      if (!qText) blockErrors.push('Missing Question Text');
+      if (!optA) blockErrors.push('Missing Option A');
+      if (!optB) blockErrors.push('Missing Option B');
+      if (!optC) blockErrors.push('Missing Option C');
+      if (!optD) blockErrors.push('Missing Option D');
+      if (!correctAns || !['A', 'B', 'C', 'D'].includes(correctAns)) {
+        blockErrors.push('Missing or invalid Answer (must be A, B, C, or D)');
+      }
+
+      if (blockErrors.length > 0) {
+        problems.push({
+          questionNumber,
+          issues: blockErrors
+        });
+      } else {
+        validQuestions.push({
+          questionNumber,
+          question: qText,
+          option_a: optA,
+          option_b: optB,
+          option_c: optC,
+          option_d: optD,
+          correct_answer: correctAns,
           marks: 1
-        };
-        continue;
+        });
       }
+    });
 
-      if (!current) {
-        current = { question: line, option_a: '', option_b: '', option_c: '', option_d: '', correct_answer: 'A', marks: 1 };
-        continue;
-      }
-
-      const optAMatch = line.match(/^(?:A[\.\:\)]|\(A\))\s*(.+)/i);
-      const optBMatch = line.match(/^(?:B[\.\:\)]|\(B\))\s*(.+)/i);
-      const optCMatch = line.match(/^(?:C[\.\:\)]|\(C\))\s*(.+)/i);
-      const optDMatch = line.match(/^(?:D[\.\:\)]|\(D\))\s*(.+)/i);
-      const ansMatch = line.match(/^(?:Ans(?:wer)?|Correct(?:\s*Option)?|Key)[\.\:\s]*([A-D])/i);
-
-      if (optAMatch) current.option_a = optAMatch[1].trim();
-      else if (optBMatch) current.option_b = optBMatch[1].trim();
-      else if (optCMatch) current.option_c = optCMatch[1].trim();
-      else if (optDMatch) current.option_d = optDMatch[1].trim();
-      else if (ansMatch) current.correct_answer = ansMatch[1].toUpperCase();
-      else if (!current.option_a) current.question += ' ' + line;
-    }
-
-    if (current && current.question && current.option_a && current.option_b) {
-      parsedList.push(current);
-    }
-
-    const cleanedList = parsedList.map(q => ({
-      question: q.question,
-      option_a: q.option_a || 'Option A',
-      option_b: q.option_b || 'Option B',
-      option_c: q.option_c || 'Option C',
-      option_d: q.option_d || 'Option D',
-      correct_answer: (q.correct_answer || 'A').toUpperCase(),
-      marks: q.marks || 1
-    }));
-
-    setParsedPreview(cleanedList);
+    setParsedPreview(validQuestions);
+    setParsedErrors(problems);
   };
 
   const handleFileChange = (e) => {
@@ -271,7 +313,12 @@ export default function AdminQuestionsPage() {
 
   const handleExecuteImport = async () => {
     if (parsedPreview.length === 0) {
-      setImportErrorMsg('No valid questions parsed from document.');
+      setImportErrorMsg('No valid questions parsed from document text.');
+      return;
+    }
+
+    if (parsedErrors.length > 0) {
+      setImportErrorMsg(`Cannot import: ${parsedErrors.length} question(s) are malformed. Please fix errors first.`);
       return;
     }
 
@@ -304,6 +351,7 @@ export default function AdminQuestionsPage() {
         setShowImportModal(false);
         setRawImportText('');
         setParsedPreview([]);
+        setParsedErrors([]);
         setFileName('');
         setImportSuccessMsg('');
       }, 1500);
@@ -342,6 +390,7 @@ export default function AdminQuestionsPage() {
             onClick={() => {
               setRawImportText('');
               setParsedPreview([]);
+              setParsedErrors([]);
               setFileName('');
               setImportErrorMsg('');
               setImportSuccessMsg('');
@@ -350,7 +399,7 @@ export default function AdminQuestionsPage() {
             className="px-5 py-3 bg-[#5DA9B0] hover:bg-[#489198] text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-white/20 cursor-pointer"
           >
             <FileUp className="w-4 h-4 text-white" />
-            <span>Import Questions (PDF/Doc)</span>
+            <span>Import Questions (Plain Text)</span>
           </button>
 
           <button
@@ -567,7 +616,7 @@ export default function AdminQuestionsPage() {
         </div>
       )}
 
-      {/* PDF / Document Import Questions Modal */}
+      {/* PDF / Plain Text Document Import Questions Modal */}
       {showImportModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#D0EFEF] rounded-[36px] max-w-3xl w-full p-6 sm:p-8 shadow-warm-lg border border-[#AEE3E0] space-y-6 max-h-[90vh] overflow-y-auto">
@@ -576,8 +625,8 @@ export default function AdminQuestionsPage() {
               <div className="flex items-center space-x-2">
                 <FileUp className="w-6 h-6 text-[#2C6A74]" />
                 <div>
-                  <h3 className="text-xl font-black text-[#0F2F34] uppercase tracking-tight">Import Questions from PDF / Document</h3>
-                  <p className="text-xs text-[#3D6E75]">Upload or paste document text to parse and convert into structured questions automatically.</p>
+                  <h3 className="text-xl font-black text-[#0F2F34] uppercase tracking-tight">Import Questions from Plain Text</h3>
+                  <p className="text-xs text-[#3D6E75]">Supports 40+ questions in markdown format with bold markers & ✅ answers.</p>
                 </div>
               </div>
               <button onClick={() => setShowImportModal(false)} className="p-1.5 rounded-full hover:bg-[#AEE3E0]">
@@ -585,40 +634,56 @@ export default function AdminQuestionsPage() {
               </button>
             </div>
 
-            {/* Document Upload Drop Zone */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-[#0F2F34] uppercase">Select Document or PDF File</label>
-              <div className="border-2 border-dashed border-[#5DA9B0] bg-[#EBF7F7] rounded-3xl p-6 text-center space-y-2 relative hover:bg-[#AEE3E0]/30 transition-all">
+            {/* File Upload Drop Zone */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-[#0F2F34] uppercase">Select Question Text / Document File</label>
+              <div className="border-2 border-dashed border-[#5DA9B0] bg-[#EBF7F7] rounded-3xl p-5 text-center space-y-2 relative hover:bg-[#AEE3E0]/30 transition-all">
                 <input
                   type="file"
-                  accept=".pdf,.doc,.docx,.txt,.json,.csv"
+                  accept=".txt,.doc,.docx,.pdf,.json"
                   onChange={handleFileChange}
                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 />
-                <FileText className="w-10 h-10 text-[#2C6A74] mx-auto" />
+                <FileText className="w-8 h-8 text-[#2C6A74] mx-auto" />
                 <p className="text-xs font-bold text-[#0F2F34]">
-                  {fileName ? `Loaded: ${fileName}` : 'Click to Upload or Drag PDF / Word DOC / TXT / JSON File'}
+                  {fileName ? `Loaded: ${fileName}` : 'Click to Upload or Drag .txt / .doc / .pdf File'}
                 </p>
-                <p className="text-[11px] text-[#3D6E75]">Supports .pdf, .doc, .docx, .txt, .json formats</p>
               </div>
             </div>
 
-            {/* Document Raw Text Editor / Paste Box */}
+            {/* Direct Text Area */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-[#0F2F34] uppercase">Document Content / Direct Paste</label>
+                <label className="block text-xs font-bold text-[#0F2F34] uppercase">Question Text Input / Paste Box</label>
                 <span className="text-[11px] font-bold text-[#2C6A74]">
-                  Parsed Questions: {parsedPreview.length}
+                  Parsed Valid Questions: {parsedPreview.length}
                 </span>
               </div>
               <textarea
                 value={rawImportText}
                 onChange={handleRawTextChange}
-                rows={5}
-                placeholder={`Example Format:\n1. What is CSS?\nA. Cascading Style Sheets\nB. Creative Style Sheets\nC. Computer Style Software\nD. Colorful Style Syntax\nAnswer: A`}
+                rows={6}
+                placeholder={`Format Example:\n**1. What does HTML stand for?**\n A) Hyper Text Markup Language\n B) High Text Machine Language\n C) Hyperlink Text Management Language\n D) Home Tool Markup Language\n ✅ **Answer: A**`}
                 className="w-full p-4 bg-[#EBF7F7] border border-[#AEE3E0] rounded-2xl text-xs font-mono focus:outline-none text-[#0F2F34] leading-relaxed"
               />
             </div>
+
+            {/* Error Reporting for Malformed Questions */}
+            {parsedErrors.length > 0 && (
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs space-y-2">
+                <div className="flex items-center space-x-2 font-bold text-amber-800">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Malformed Questions Identified ({parsedErrors.length}):</span>
+                </div>
+                <ul className="list-disc pl-5 space-y-1 text-[11px]">
+                  {parsedErrors.map((err, idx) => (
+                    <li key={idx}>
+                      <strong>Question #{err.questionNumber}:</strong> {err.issues.join(', ')}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Live Parsed Questions Preview Grid */}
             {parsedPreview.length > 0 && (
@@ -628,7 +693,7 @@ export default function AdminQuestionsPage() {
                   <span className="text-[10px] bg-[#2C6A74] text-white px-2.5 py-0.5 rounded-full font-bold">Ready to Import</span>
                 </div>
 
-                <div className="max-h-48 overflow-y-auto space-y-3 pr-1">
+                <div className="max-h-52 overflow-y-auto space-y-3 pr-1">
                   {parsedPreview.map((q, idx) => (
                     <div key={idx} className="bg-white p-3.5 rounded-2xl border border-[#AEE3E0] text-xs space-y-2">
                       <div className="flex items-start justify-between gap-2">
@@ -674,7 +739,7 @@ export default function AdminQuestionsPage() {
               <button
                 type="button"
                 onClick={handleExecuteImport}
-                disabled={parsedPreview.length === 0 || importing}
+                disabled={parsedPreview.length === 0 || parsedErrors.length > 0 || importing}
                 className="w-2/3 py-3.5 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-extrabold border border-[#5DA9B0]/30 shadow-warm-sm flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
               >
                 {importing ? (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, AlertCircle, ShieldAlert, X, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, AlertCircle, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -11,10 +11,11 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [alreadyRegisteredMsg, setAlreadyRegisteredMsg] = useState('');
   const [showAlreadyRegisteredModal, setShowAlreadyRegisteredModal] = useState(false);
 
   useEffect(() => {
-    // If active session exists in localStorage, check status
+    // If active session exists in localStorage, check server status
     const savedPhone = localStorage.getItem('participant_phone');
     if (savedPhone) {
       fetch(`/api/participant/session/${savedPhone}`)
@@ -22,7 +23,7 @@ export default function RegisterPage() {
         .then((data) => {
           if (data.status === 'COMPLETED' && data.access_status !== 'ALLOWED_RETAKE') {
             navigate('/quiz/submitted');
-          } else if (data.status === 'IN_PROGRESS') {
+          } else if (data.status === 'IN_PROGRESS' || data.status === 'BLOCKED' || data.status === 'EXPIRED') {
             navigate('/quiz');
           } else if (data.status === 'REGISTERED') {
             navigate('/quiz/start');
@@ -55,6 +56,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setAlreadyRegisteredMsg('');
 
     if (!formData.name.trim()) {
       setError('Full Name is required.');
@@ -81,7 +83,8 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.alreadyCompleted) {
+        if (data.alreadyRegistered || data.alreadyCompleted) {
+          setAlreadyRegisteredMsg(data.error || 'This phone number is already registered. You can register again only after an administrator removes the previous registration.');
           setShowAlreadyRegisteredModal(true);
         } else {
           setError(data.error || 'Registration failed.');
@@ -112,7 +115,7 @@ export default function RegisterPage() {
         {/* Two-Column Grid Layout */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 items-center">
           
-          {/* LEFT: 5 Columns Editorial Title & Info */}
+          {/* LEFT: Editorial Title & Info */}
           <div className="md:col-span-5 space-y-6">
             <span className="inline-block px-3.5 py-1 bg-[#AEE3E0] text-[#0F2F34] text-xs font-semibold rounded-full border border-[#5DA9B0]/40 shadow-sm">
               Registration
@@ -130,13 +133,13 @@ export default function RegisterPage() {
             <div className="p-4 rounded-2xl bg-[#D0EFEF]/80 border border-[#AEE3E0] text-xs text-[#0F2F34] space-y-2">
               <div className="flex items-center space-x-2 font-bold">
                 <CheckCircle2 className="w-4 h-4 text-[#2C6A74]" />
-                <span>Single attempt per participant policy</span>
+                <span>Single active registration per phone number</span>
               </div>
-              <p className="text-[#3D6E75]">Ensure browser tab remains open during the 30-minute quiz window.</p>
+              <p className="text-[#3D6E75]">Ensure browser tab remains open during the quiz window.</p>
             </div>
           </div>
 
-          {/* RIGHT: 7 Columns Ocean Foam Registration Card */}
+          {/* RIGHT: Ocean Foam Registration Card */}
           <div className="md:col-span-7">
             <div className="bg-[#D0EFEF]/60 rounded-[32px] p-8 shadow-warm-md border border-[#AEE3E0] space-y-6">
               
@@ -240,11 +243,8 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <h3 className="text-2xl font-black text-[#0F2F34] uppercase">Already Registered</h3>
-              <p className="text-sm font-semibold text-[#0F2F34]">
-                This phone number has already been used for this quiz.
-              </p>
-              <p className="text-xs text-[#3D6E75] pt-1">
-                Please contact the event organizers if you need another attempt.
+              <p className="text-xs font-semibold text-[#0F2F34] leading-relaxed">
+                {alreadyRegisteredMsg || 'This phone number is already registered. You can register again only after an administrator removes the previous registration.'}
               </p>
             </div>
 

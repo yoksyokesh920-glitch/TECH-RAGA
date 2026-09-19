@@ -19,6 +19,44 @@ function cleanAndValidatePhone(rawPhone) {
   return null;
 }
 
+// Helper function: get active quiz duration setting in minutes
+function getQuizDurationMinutes() {
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'quiz_duration_minutes'").get();
+    return row ? Number(row.value) : 15;
+  } catch (e) {
+    return 15;
+  }
+}
+
+// Helper function: check attempt expiration based on server time
+function checkAndUpdateAttemptExpiry(attempt) {
+  if (!attempt || attempt.status !== 'IN_PROGRESS') return attempt;
+
+  const durationMinutes = getQuizDurationMinutes();
+  let endTimeMs = 0;
+
+  if (attempt.test_end_time) {
+    endTimeMs = new Date(attempt.test_end_time).getTime();
+  } else if (attempt.started_at) {
+    endTimeMs = new Date(attempt.started_at).getTime() + (durationMinutes * 60 * 1000);
+  }
+
+  if (endTimeMs > 0 && Date.now() >= endTimeMs) {
+    const durationSeconds = durationMinutes * 60;
+    db.prepare(`
+      UPDATE quiz_attempts
+      SET status = 'EXPIRED', time_taken = ?
+      WHERE id = ?
+    `).run(durationSeconds, attempt.id);
+
+    attempt.status = 'EXPIRED';
+    attempt.time_taken = durationSeconds;
+  }
+
+  return attempt;
+}
+
 // 1. PARTICIPANT REGISTRATION & PHONE ACCESS CONTROL
 router.post('/register', (req, res) => {
   const { name, phone, college } = req.body;
@@ -40,64 +78,17 @@ router.post('/register', (req, res) => {
   const cleanName = name.trim();
   const cleanCollege = college.trim();
 
-  // Check if phone already exists
-  const existingPart = db.prepare('SELECT * FROM participants WHERE phone = ?').get(cleanPhone);
+  // Check if active registration already exists for this phone number
+  const existingPart = db.prepare("SELECT * FROM participants WHERE phone = ? AND access_status != 'REMOVED'").get(cleanPhone);
 
   if (existingPart) {
-    // Fetch latest quiz attempt for this participant
-    const latestAttempt = db.prepare(`
-      SELECT * FROM quiz_attempts 
-      WHERE participant_id = ? 
-      ORDER BY attempt_number DESC, id DESC 
-      LIMIT 1
-    `).get(existingPart.id);
-
-    if (latestAttempt && latestAttempt.status === 'COMPLETED') {
-      if (existingPart.access_status !== 'ALLOWED_RETAKE') {
-        return res.status(400).json({
-          alreadyCompleted: true,
-          error: 'Already Registered',
-          message: 'This phone number has already been used for this quiz.'
-        });
-      }
-
-      // If admin granted retake permission: create a new attempt
-      const newAttemptNum = (latestAttempt.attempt_number || 1) + 1;
-      
-      const createRetake = db.transaction(() => {
-        db.prepare('UPDATE participants SET access_status = ? WHERE id = ?').run('ALLOWED', existingPart.id);
-        const result = db.prepare(`
-          INSERT INTO quiz_attempts (participant_id, attempt_number, status)
-          VALUES (?, ?, 'REGISTERED')
-        `).run(existingPart.id, newAttemptNum);
-        return result.lastInsertRowid;
-      });
-
-      const attemptId = createRetake();
-      return res.status(201).json({
-        message: 'New attempt authorized.',
-        phone: cleanPhone,
-        name: existingPart.name,
-        college: existingPart.college,
-        attempt_id: attemptId,
-        attempt_number: newAttemptNum,
-        status: 'REGISTERED'
-      });
-    }
-
-    // If existing attempt is REGISTERED or IN_PROGRESS, allow continuing
-    return res.json({
-      message: 'Registration retrieved successfully.',
-      phone: cleanPhone,
-      name: existingPart.name,
-      college: existingPart.college,
-      attempt_id: latestAttempt ? latestAttempt.id : null,
-      attempt_number: latestAttempt ? latestAttempt.attempt_number : 1,
-      status: latestAttempt ? latestAttempt.status : 'REGISTERED'
+    return res.status(400).json({
+      alreadyRegistered: true,
+      error: 'This phone number is already registered. You can register again only after an administrator removes the previous registration.'
     });
   }
 
-  // Create New Participant & Attempt #1
+  // Create New Participant & Attempt #1 atomically in a transaction
   const createNew = db.transaction(() => {
     const partResult = db.prepare(`
       INSERT INTO participants (name, phone, college, access_status)
@@ -107,8 +98,8 @@ router.post('/register', (req, res) => {
     const pId = partResult.lastInsertRowid;
 
     const attemptResult = db.prepare(`
-      INSERT INTO quiz_attempts (participant_id, attempt_number, status)
-      VALUES (?, 1, 'REGISTERED')
+      INSERT INTO quiz_attempts (participant_id, attempt_number, status, warning_count)
+      VALUES (?, 1, 'REGISTERED', 0)
     `).run(pId);
 
     return { pId, attemptId: attemptResult.lastInsertRowid };
@@ -127,26 +118,49 @@ router.post('/register', (req, res) => {
     });
   } catch (err) {
     console.error('Registration error:', err);
+    if (err.code === 'SQLITE_CONSTRAINT' || String(err).includes('UNIQUE')) {
+      return res.status(400).json({
+        alreadyRegistered: true,
+        error: 'This phone number is already registered. You can register again only after an administrator removes the previous registration.'
+      });
+    }
     return res.status(500).json({ error: 'Failed to complete registration. Please try again.' });
   }
 });
 
-// 2. GET SESSION BY PHONE NUMBER
+// 2. GET SESSION BY PHONE NUMBER (Server Authoritative Session)
 router.get('/session/:phone', (req, res) => {
   const { phone } = req.params;
   const cleanPhone = phone.trim().replace(/[\s-]/g, '');
 
-  const participant = db.prepare('SELECT * FROM participants WHERE phone = ?').get(cleanPhone);
+  const participant = db.prepare("SELECT * FROM participants WHERE phone = ? AND access_status != 'REMOVED'").get(cleanPhone);
   if (!participant) {
     return res.status(404).json({ error: 'Participant not found.' });
   }
 
-  const latestAttempt = db.prepare(`
+  let latestAttempt = db.prepare(`
     SELECT * FROM quiz_attempts 
     WHERE participant_id = ? 
     ORDER BY attempt_number DESC, id DESC 
     LIMIT 1
   `).get(participant.id);
+
+  if (latestAttempt) {
+    latestAttempt = checkAndUpdateAttemptExpiry(latestAttempt);
+  }
+
+  const durationMinutes = getQuizDurationMinutes();
+  let remainingSeconds = 0;
+  let testEndTimeIso = null;
+
+  if (latestAttempt && latestAttempt.status === 'IN_PROGRESS') {
+    const endTimeMs = latestAttempt.test_end_time
+      ? new Date(latestAttempt.test_end_time).getTime()
+      : new Date(latestAttempt.started_at).getTime() + (durationMinutes * 60 * 1000);
+
+    testEndTimeIso = new Date(endTimeMs).toISOString();
+    remainingSeconds = Math.max(0, Math.floor((endTimeMs - Date.now()) / 1000));
+  }
 
   let savedAnswers = {};
   if (latestAttempt && latestAttempt.id) {
@@ -156,6 +170,10 @@ router.get('/session/:phone', (req, res) => {
     });
   }
 
+  const effectiveStatus = (participant.access_status === 'BLOCKED' || (latestAttempt && latestAttempt.status === 'BLOCKED'))
+    ? 'BLOCKED'
+    : (latestAttempt ? latestAttempt.status : 'REGISTERED');
+
   return res.json({
     phone: participant.phone,
     name: participant.name,
@@ -163,14 +181,19 @@ router.get('/session/:phone', (req, res) => {
     access_status: participant.access_status,
     attempt_id: latestAttempt ? latestAttempt.id : null,
     attempt_number: latestAttempt ? latestAttempt.attempt_number : 1,
-    status: latestAttempt ? latestAttempt.status : 'REGISTERED',
+    status: effectiveStatus,
+    warning_count: latestAttempt ? (latestAttempt.warning_count || 0) : 0,
     started_at: latestAttempt ? latestAttempt.started_at : null,
+    test_end_time: testEndTimeIso,
     submitted_at: latestAttempt ? latestAttempt.submitted_at : null,
-    savedAnswers
+    durationMinutes,
+    remainingSeconds,
+    savedAnswers,
+    serverTime: new Date().toISOString()
   });
 });
 
-// 3. START QUIZ
+// 3. START QUIZ (Server-Authoritative User-Specific Timer: Returns existing session if IN_PROGRESS)
 router.post('/start', (req, res) => {
   const { phone } = req.body;
   if (!phone) {
@@ -178,12 +201,16 @@ router.post('/start', (req, res) => {
   }
 
   const cleanPhone = phone.trim().replace(/[\s-]/g, '');
-  const participant = db.prepare('SELECT * FROM participants WHERE phone = ?').get(cleanPhone);
+  const participant = db.prepare("SELECT * FROM participants WHERE phone = ? AND access_status != 'REMOVED'").get(cleanPhone);
   if (!participant) {
     return res.status(404).json({ error: 'Participant record not found.' });
   }
 
-  const latestAttempt = db.prepare(`
+  if (participant.access_status === 'BLOCKED') {
+    return res.status(403).json({ error: 'Participant is BLOCKED.', status: 'BLOCKED' });
+  }
+
+  let latestAttempt = db.prepare(`
     SELECT * FROM quiz_attempts 
     WHERE participant_id = ? 
     ORDER BY attempt_number DESC, id DESC 
@@ -191,35 +218,88 @@ router.post('/start', (req, res) => {
   `).get(participant.id);
 
   if (!latestAttempt) {
-    return res.status(404).json({ error: 'No active quiz attempt found.' });
+    return res.status(404).json({ error: 'No quiz attempt record found.' });
   }
 
-  if (latestAttempt.status === 'COMPLETED') {
-    return res.status(400).json({ error: 'Quiz has already been submitted.' });
-  }
+  latestAttempt = checkAndUpdateAttemptExpiry(latestAttempt);
 
+  const durationMinutes = getQuizDurationMinutes();
   const totalQuestions = db.prepare('SELECT COUNT(*) as count FROM questions').get().count;
   const totalMarks = db.prepare('SELECT SUM(marks) as total FROM questions').get().total || totalQuestions;
 
-  if (latestAttempt.status === 'REGISTERED') {
-    db.prepare(`
-      UPDATE quiz_attempts
-      SET status = 'IN_PROGRESS', started_at = CURRENT_TIMESTAMP, total_marks = ?
-      WHERE id = ?
-    `).run(totalMarks, latestAttempt.id);
+  // IF ALREADY IN_PROGRESS: DO NOT reset started_at or test_end_time! Return existing authoritative session.
+  if (latestAttempt.status === 'IN_PROGRESS') {
+    const endTimeMs = new Date(latestAttempt.test_end_time).getTime();
+    const remainingSeconds = Math.max(0, Math.floor((endTimeMs - Date.now()) / 1000));
+    return res.json({
+      message: 'Resuming existing active attempt.',
+      phone: cleanPhone,
+      status: 'IN_PROGRESS',
+      attempt_number: latestAttempt.attempt_number,
+      totalQuestions,
+      durationMinutes,
+      started_at: latestAttempt.started_at,
+      test_end_time: latestAttempt.test_end_time,
+      remainingSeconds,
+      warning_count: latestAttempt.warning_count || 0
+    });
   }
+
+  if (latestAttempt.status === 'COMPLETED') {
+    return res.status(400).json({ error: 'Quiz has already been submitted.', status: 'COMPLETED' });
+  }
+  if (latestAttempt.status === 'EXPIRED') {
+    return res.status(400).json({ error: 'Quiz attempt has expired. Contact administrator for reset.', status: 'EXPIRED' });
+  }
+  if (latestAttempt.status === 'BLOCKED') {
+    return res.status(403).json({ error: 'Quiz attempt is BLOCKED.', status: 'BLOCKED' });
+  }
+
+  // FIRST TIME STARTING FOR THIS ATTEMPT: Set user-specific started_at and test_end_time
+  const nowMs = Date.now();
+  const startedAtIso = new Date(nowMs).toISOString();
+  const testEndTimeIso = new Date(nowMs + (durationMinutes * 60 * 1000)).toISOString();
+
+  db.prepare(`
+    UPDATE quiz_attempts
+    SET status = 'IN_PROGRESS', started_at = ?, test_end_time = ?, total_marks = ?, warning_count = 0
+    WHERE id = ?
+  `).run(startedAtIso, testEndTimeIso, totalMarks, latestAttempt.id);
 
   return res.json({
     message: 'Quiz started successfully.',
     phone: cleanPhone,
     status: 'IN_PROGRESS',
     attempt_number: latestAttempt.attempt_number,
-    totalQuestions
+    totalQuestions,
+    durationMinutes,
+    started_at: startedAtIso,
+    test_end_time: testEndTimeIso,
+    remainingSeconds: durationMinutes * 60,
+    warning_count: 0
   });
 });
 
-// 4. SANITIZED QUIZ QUESTIONS (NO CORRECT ANSWERS OR MARKS LEAKED!)
+// 4. SANITIZED QUIZ QUESTIONS
 router.get('/questions', (req, res) => {
+  const { phone } = req.query;
+  if (phone) {
+    const cleanPhone = String(phone).trim().replace(/[\s-]/g, '');
+    const participant = db.prepare("SELECT * FROM participants WHERE phone = ? AND access_status != 'REMOVED'").get(cleanPhone);
+    if (participant) {
+      let attempt = db.prepare("SELECT * FROM quiz_attempts WHERE participant_id = ? ORDER BY attempt_number DESC, id DESC LIMIT 1").get(participant.id);
+      if (attempt) {
+        attempt = checkAndUpdateAttemptExpiry(attempt);
+        if (participant.access_status === 'BLOCKED' || attempt.status === 'BLOCKED') {
+          return res.status(403).json({ error: 'Attempt is BLOCKED.', status: 'BLOCKED' });
+        }
+        if (attempt.status === 'EXPIRED') {
+          return res.status(403).json({ error: 'Attempt has EXPIRED.', status: 'EXPIRED' });
+        }
+      }
+    }
+  }
+
   const questions = db.prepare(`
     SELECT id, question, option_a, option_b, option_c, option_d
     FROM questions
@@ -229,10 +309,9 @@ router.get('/questions', (req, res) => {
   return res.json(questions);
 });
 
-// 4b. GET PUBLIC QUIZ SETTINGS (e.g. Duration in minutes)
+// 4b. GET PUBLIC QUIZ SETTINGS
 router.get('/settings', (req, res) => {
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'quiz_duration_minutes'").get();
-  const durationMinutes = row ? Number(row.value) : 30;
+  const durationMinutes = getQuizDurationMinutes();
   return res.json({ durationMinutes });
 });
 
@@ -244,12 +323,16 @@ router.post('/save-answer', (req, res) => {
   }
 
   const cleanPhone = phone.trim().replace(/[\s-]/g, '');
-  const participant = db.prepare('SELECT * FROM participants WHERE phone = ?').get(cleanPhone);
+  const participant = db.prepare("SELECT * FROM participants WHERE phone = ? AND access_status != 'REMOVED'").get(cleanPhone);
   if (!participant) {
     return res.status(404).json({ error: 'Participant not found.' });
   }
 
-  const latestAttempt = db.prepare(`
+  if (participant.access_status === 'BLOCKED') {
+    return res.status(403).json({ error: 'Participant is BLOCKED.', status: 'BLOCKED' });
+  }
+
+  let latestAttempt = db.prepare(`
     SELECT * FROM quiz_attempts 
     WHERE participant_id = ? AND status = 'IN_PROGRESS' 
     ORDER BY attempt_number DESC, id DESC 
@@ -257,7 +340,12 @@ router.post('/save-answer', (req, res) => {
   `).get(participant.id);
 
   if (!latestAttempt) {
-    return res.status(400).json({ error: 'Cannot save answer for an inactive attempt.' });
+    return res.status(400).json({ error: 'Cannot save answer for an inactive or completed attempt.' });
+  }
+
+  latestAttempt = checkAndUpdateAttemptExpiry(latestAttempt);
+  if (latestAttempt.status === 'EXPIRED') {
+    return res.status(403).json({ error: 'Quiz time has expired.', status: 'EXPIRED' });
   }
 
   const upsertStmt = db.prepare(`
@@ -270,16 +358,16 @@ router.post('/save-answer', (req, res) => {
   return res.json({ success: true });
 });
 
-// 5b. TAB SWITCH DETECTION LOCK ENDPOINT (2-CHANCE POLICY)
+// 5b. THREE-STAGE WARNING SYSTEM & DEDUPLICATION (3-VIOLATION POLICY)
 router.post('/tab-switch-block', (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone is required.' });
 
   const cleanPhone = phone.trim().replace(/[\s-]/g, '');
-  const participant = db.prepare('SELECT * FROM participants WHERE phone = ?').get(cleanPhone);
+  const participant = db.prepare("SELECT * FROM participants WHERE phone = ? AND access_status != 'REMOVED'").get(cleanPhone);
   if (!participant) return res.status(404).json({ error: 'Participant not found.' });
 
-  const latestAttempt = db.prepare(`
+  let latestAttempt = db.prepare(`
     SELECT * FROM quiz_attempts 
     WHERE participant_id = ? 
     ORDER BY attempt_number DESC, id DESC 
@@ -288,31 +376,90 @@ router.post('/tab-switch-block', (req, res) => {
 
   if (!latestAttempt) return res.status(404).json({ error: 'No active attempt found.' });
 
-  const currentCount = (latestAttempt.tab_switch_count || 0) + 1;
-
-  if (currentCount < 2) {
-    db.prepare('UPDATE quiz_attempts SET tab_switch_count = ? WHERE id = ?').run(currentCount, latestAttempt.id);
+  latestAttempt = checkAndUpdateAttemptExpiry(latestAttempt);
+  if (latestAttempt.status === 'EXPIRED') {
+    return res.status(403).json({ error: 'Quiz time limit expired.', status: 'EXPIRED' });
+  }
+  if (latestAttempt.status === 'BLOCKED' || participant.access_status === 'BLOCKED') {
     return res.json({
-      blocked: false,
-      warningCount: currentCount,
-      message: `Warning ${currentCount} of 2: Tab switching is strictly prohibited! Next violation will lock your exam.`
+      blocked: true,
+      warningCount: 3,
+      status: 'BLOCKED',
+      message: 'Your test has been blocked due to repeated violations. Please contact the administrator.'
     });
   }
 
-  // 2nd violation -> Block candidate
+  const nowMs = Date.now();
+  const lastWarningMs = latestAttempt.last_warning_at ? new Date(latestAttempt.last_warning_at).getTime() : 0;
+
+  // SERVER-SIDE WARNING DEDUPLICATION: 3-second cooldown window
+  if (nowMs - lastWarningMs < 3000) {
+    const currentCount = latestAttempt.warning_count || 0;
+    return res.json({
+      blocked: currentCount >= 3,
+      warningCount: currentCount,
+      status: currentCount >= 3 ? 'BLOCKED' : 'IN_PROGRESS',
+      message: currentCount === 1
+        ? 'Warning 1 of 3: Leaving the quiz/fullscreen or switching tabs is not allowed.'
+        : currentCount === 2
+        ? 'Final Warning: One more violation will block your test.'
+        : 'Your test has been blocked due to repeated violations. Please contact the administrator.'
+    });
+  }
+
+  const newWarningCount = (latestAttempt.warning_count || 0) + 1;
+  const nowIso = new Date(nowMs).toISOString();
+
+  if (newWarningCount === 1) {
+    db.prepare(`
+      UPDATE quiz_attempts 
+      SET warning_count = 1, tab_switch_count = 1, last_warning_at = ? 
+      WHERE id = ?
+    `).run(nowIso, latestAttempt.id);
+
+    return res.json({
+      blocked: false,
+      warningCount: 1,
+      status: 'IN_PROGRESS',
+      message: 'Warning 1 of 3: Leaving the quiz/fullscreen or switching tabs is not allowed.'
+    });
+  }
+
+  if (newWarningCount === 2) {
+    db.prepare(`
+      UPDATE quiz_attempts 
+      SET warning_count = 2, tab_switch_count = 2, last_warning_at = ? 
+      WHERE id = ?
+    `).run(nowIso, latestAttempt.id);
+
+    return res.json({
+      blocked: false,
+      warningCount: 2,
+      status: 'IN_PROGRESS',
+      message: 'Final Warning: One more violation will block your test.'
+    });
+  }
+
+  // 3rd Violation -> Atomically Block candidate in DB transaction
   db.transaction(() => {
-    db.prepare("UPDATE quiz_attempts SET tab_switch_count = ?, status = 'BLOCKED' WHERE id = ?").run(currentCount, latestAttempt.id);
+    db.prepare(`
+      UPDATE quiz_attempts 
+      SET warning_count = 3, tab_switch_count = 3, status = 'BLOCKED', last_warning_at = ? 
+      WHERE id = ?
+    `).run(nowIso, latestAttempt.id);
+    
     db.prepare("UPDATE participants SET access_status = 'BLOCKED' WHERE id = ?").run(participant.id);
   })();
 
   return res.json({
     blocked: true,
-    warningCount: currentCount,
-    message: 'Quiz locked due to repeated tab switching (2 warnings exceeded).'
+    warningCount: 3,
+    status: 'BLOCKED',
+    message: 'Your test has been blocked due to repeated violations. Please contact the administrator.'
   });
 });
 
-// 6. SUBMIT QUIZ (STRICT 100% ANSWERED ENFORCEMENT & RESULT PRIVACY)
+// 6. SUBMIT QUIZ (SERVER TIME RACE CONDITION & COMPLETION VALIDATION)
 router.post('/submit', (req, res) => {
   const { phone, answers } = req.body;
   if (!phone) {
@@ -320,12 +467,16 @@ router.post('/submit', (req, res) => {
   }
 
   const cleanPhone = phone.trim().replace(/[\s-]/g, '');
-  const participant = db.prepare('SELECT * FROM participants WHERE phone = ?').get(cleanPhone);
+  const participant = db.prepare("SELECT * FROM participants WHERE phone = ? AND access_status != 'REMOVED'").get(cleanPhone);
   if (!participant) {
     return res.status(404).json({ error: 'Participant record not found.' });
   }
 
-  const latestAttempt = db.prepare(`
+  if (participant.access_status === 'BLOCKED') {
+    return res.status(403).json({ error: 'Participant is BLOCKED.', status: 'BLOCKED' });
+  }
+
+  let latestAttempt = db.prepare(`
     SELECT * FROM quiz_attempts 
     WHERE participant_id = ? AND status = 'IN_PROGRESS' 
     ORDER BY attempt_number DESC, id DESC 
@@ -336,9 +487,26 @@ router.post('/submit', (req, res) => {
     return res.status(400).json({ error: 'No in-progress attempt found to submit.' });
   }
 
+  // Check server time vs test_end_time
+  latestAttempt = checkAndUpdateAttemptExpiry(latestAttempt);
+  if (latestAttempt.status === 'EXPIRED') {
+    return res.status(400).json({
+      error: 'Submission Rejected',
+      message: 'The quiz time limit has expired. Submission could not be accepted.',
+      status: 'EXPIRED'
+    });
+  }
+
   // Fetch all questions to verify 100% completion
   const allQuestions = db.prepare('SELECT id, correct_answer, marks FROM questions').all();
   const userAnswersMap = new Map();
+
+  // Query intermediate saved answers in DB
+  const savedDbAnswers = db.prepare('SELECT question_id, selected_answer FROM answers WHERE attempt_id = ?').all(latestAttempt.id);
+  savedDbAnswers.forEach(a => {
+    if (a.selected_answer) userAnswersMap.set(a.question_id, a.selected_answer);
+  });
+
   if (answers && Array.isArray(answers)) {
     answers.forEach(a => {
       if (a.selected_answer) {
@@ -392,10 +560,9 @@ router.post('/submit', (req, res) => {
       upsertAnswerStmt.run(latestAttempt.id, qId, selAns, isCorrect);
     }
 
-    // Time taken calculation
     let timeTakenSeconds = 0;
     if (latestAttempt.started_at) {
-      const startTime = new Date(latestAttempt.started_at + 'Z').getTime();
+      const startTime = new Date(latestAttempt.started_at).getTime();
       const endTime = Date.now();
       timeTakenSeconds = Math.max(1, Math.round((endTime - startTime) / 1000));
     }
@@ -413,10 +580,10 @@ router.post('/submit', (req, res) => {
 
   try {
     submitTransaction();
-    // PRIVACY GUARANTEE: NEVER RETURN SCORES / PERCENTAGE TO PARTICIPANT API!
     return res.json({
       success: true,
-      message: 'Quiz Submitted'
+      status: 'COMPLETED',
+      message: 'Quiz Submitted Successfully'
     });
   } catch (err) {
     console.error('Submission error:', err);

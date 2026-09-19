@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ArrowUpDown, Eye, Download, X, CheckCircle2, XCircle, RotateCcw, Ban, Unlock } from 'lucide-react';
+import { Search, ArrowUpDown, Eye, Download, X, RotateCcw, Unlock, UserX } from 'lucide-react';
 
 export default function AdminResultsPage() {
   const navigate = useNavigate();
@@ -98,12 +98,13 @@ export default function AdminResultsPage() {
     setLoadingModal(false);
   };
 
-  const handleAllowRetake = async (phone) => {
-    if (!window.confirm(`Authorize a new attempt for participant with phone ${phone}?`)) return;
+  // Admin Action: Reset & Restart Attempt (Creates a NEW attempt with fresh timer)
+  const handleResetAttempt = async (phone) => {
+    if (!window.confirm(`Explicitly authorize a fresh attempt for candidate with phone ${phone}?\nThis will create a new attempt and grant a fresh timer.`)) return;
 
     const token = localStorage.getItem('adminToken');
     try {
-      const res = await fetch('/api/admin/participant/allow-retake', {
+      const res = await fetch('/api/admin/participant/reset-attempt', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -113,7 +114,8 @@ export default function AdminResultsPage() {
       });
 
       if (res.ok) {
-        alert('Retake attempt authorized for candidate.');
+        const data = await res.json();
+        alert(data.message || 'New attempt authorized cleanly.');
         fetchResults();
       }
     } catch (e) {
@@ -121,10 +123,13 @@ export default function AdminResultsPage() {
     }
   };
 
-  const handleToggleBlock = async (phone) => {
+  // Admin Action: Unblock Candidate (Resumes existing timer if time remains)
+  const handleUnblockCandidate = async (phone) => {
+    if (!window.confirm(`Unblock candidate with phone ${phone}?\nIf test time remains, candidate will resume their existing attempt.`)) return;
+
     const token = localStorage.getItem('adminToken');
     try {
-      const res = await fetch('/api/admin/participant/toggle-block', {
+      const res = await fetch('/api/admin/participant/unblock', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,6 +139,33 @@ export default function AdminResultsPage() {
       });
 
       if (res.ok) {
+        const data = await res.json();
+        alert(data.message || 'Candidate unblocked.');
+        fetchResults();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Admin Action: Remove Registration (Allows phone number to re-register)
+  const handleRemoveRegistration = async (phone, name) => {
+    if (!window.confirm(`Are you sure you want to remove registration for candidate ${name} (${phone})?\nThis will allow this phone number to register again.`)) return;
+
+    const token = localStorage.getItem('adminToken');
+    try {
+      const res = await fetch('/api/admin/participant/remove', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ phone }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message || 'Registration removed successfully.');
         fetchResults();
       }
     } catch (e) {
@@ -170,15 +202,24 @@ export default function AdminResultsPage() {
     }
   };
 
+  const formatDateTime = (isoStr) => {
+    if (!isoStr) return '-';
+    try {
+      return new Date(isoStr).toLocaleString();
+    } catch (e) {
+      return isoStr;
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 bg-[#EBF7F7]">
       
       {/* Header Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-[#0F2F34] uppercase tracking-tight">Participant Results & Access</h2>
+          <h2 className="text-2xl font-black text-[#0F2F34] uppercase tracking-tight">Participant Results & Access Control</h2>
           <p className="text-xs text-[#3D6E75]">
-            Candidate scoreboard, filterable by college & status with attempt retake controls and CSV export.
+            Candidate scoreboard, filterable by college & status with admin unblock, reset attempt, and registration removal.
           </p>
         </div>
 
@@ -231,6 +272,8 @@ export default function AdminResultsPage() {
             <option value="REGISTERED">REGISTERED</option>
             <option value="IN_PROGRESS">IN_PROGRESS</option>
             <option value="COMPLETED">COMPLETED</option>
+            <option value="EXPIRED">EXPIRED</option>
+            <option value="BLOCKED">BLOCKED</option>
           </select>
         </div>
 
@@ -269,29 +312,28 @@ export default function AdminResultsPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#2C6A74] text-white text-xs font-extrabold uppercase tracking-wider border-b border-[#5DA9B0]/30">
-                <th className="p-4 pl-6">Name</th>
+                <th className="p-4 pl-6">Candidate Name</th>
                 <th className="p-4">Phone</th>
                 <th className="p-4">College</th>
-                <th className="p-4 text-center">Attempt #</th>
+                <th className="p-4 text-center">Status</th>
+                <th className="p-4 text-center">Warnings</th>
                 <th className="p-4">Score</th>
-                <th className="p-4">Percentage</th>
-                <th className="p-4">Time Taken</th>
-                <th className="p-4">Submitted At</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-center pr-6">Actions</th>
+                <th className="p-4">Start Time</th>
+                <th className="p-4">End Time</th>
+                <th className="p-4 text-center pr-6">Admin Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#AEE3E0]/60 text-xs sm:text-sm text-[#0F2F34]">
               {loading ? (
                 <tr>
-                  <td colSpan="10" className="p-8 text-center text-[#3D6E75]">
+                  <td colSpan="9" className="p-8 text-center text-[#3D6E75]">
                     <div className="inline-block w-6 h-6 border-2 border-[#2C6A74] border-t-transparent rounded-full animate-spin mr-2" />
-                    Loading records...
+                    Loading participant records...
                   </td>
                 </tr>
               ) : results.length === 0 ? (
                 <tr>
-                  <td colSpan="10" className="p-8 text-center text-[#3D6E75] font-semibold">
+                  <td colSpan="9" className="p-8 text-center text-[#3D6E75] font-semibold">
                     No participant records match the query.
                   </td>
                 </tr>
@@ -301,30 +343,14 @@ export default function AdminResultsPage() {
                     <td className="p-4 pl-6 font-bold text-[#0F2F34]">{r.name}</td>
                     <td className="p-4 font-mono text-[#3D6E75]">{r.phone}</td>
                     <td className="p-4">{r.college}</td>
-                    <td className="p-4 text-center font-bold">#{r.attempt_number || 1}</td>
-                    <td className="p-4 font-bold">
-                      {r.status === 'COMPLETED' ? (
-                        <span>{r.score} <span className="text-[#3D6E75] font-normal text-xs">/ {r.total_marks || 10}</span></span>
-                      ) : (
-                        <span className="text-gray-400 font-normal">-</span>
-                      )}
-                    </td>
-                    <td className="p-4">
-                      {r.status === 'COMPLETED' ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#AEE3E0] text-[#0F2F34] border border-[#5DA9B0]/40">
-                          {r.percentage}%
+                    
+                    {/* Status Badge */}
+                    <td className="p-4 text-center">
+                      {r.status === 'BLOCKED' && (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-red-100 text-red-700 border border-red-200">
+                          BLOCKED
                         </span>
-                      ) : (
-                        <span className="text-gray-400">-</span>
                       )}
-                    </td>
-                    <td className="p-4 text-[#3D6E75]">
-                      {r.time_taken ? `${r.time_taken}s` : '-'}
-                    </td>
-                    <td className="p-4 text-[#3D6E75] text-xs">
-                      {r.submitted_at ? new Date(r.submitted_at + 'Z').toLocaleString() : '-'}
-                    </td>
-                    <td className="p-4">
                       {r.status === 'COMPLETED' && (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-[#2C6A74] text-white border border-[#5DA9B0]/30">
                           COMPLETED
@@ -335,40 +361,88 @@ export default function AdminResultsPage() {
                           IN_PROGRESS
                         </span>
                       )}
+                      {r.status === 'EXPIRED' && (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+                          EXPIRED
+                        </span>
+                      )}
                       {r.status === 'REGISTERED' && (
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-[#D0EFEF] text-[#0F2F34] border border-[#AEE3E0]">
                           REGISTERED
                         </span>
                       )}
                     </td>
+
+                    {/* Warning Count (Out of 3) */}
+                    <td className="p-4 text-center font-bold">
+                      <span className={`px-2 py-0.5 rounded-lg text-xs ${
+                        (r.warning_count || 0) >= 3
+                          ? 'bg-red-100 text-red-700 font-extrabold'
+                          : (r.warning_count || 0) > 0
+                          ? 'bg-amber-100 text-amber-800 font-bold'
+                          : 'bg-[#EBF7F7] text-[#3D6E75]'
+                      }`}>
+                        {r.warning_count || 0} / 3
+                      </span>
+                    </td>
+
+                    {/* Score */}
+                    <td className="p-4 font-bold">
+                      {r.status === 'COMPLETED' ? (
+                        <span>{r.score} <span className="text-[#3D6E75] font-normal text-xs">/ {r.total_marks || 10}</span></span>
+                      ) : (
+                        <span className="text-gray-400 font-normal">-</span>
+                      )}
+                    </td>
+
+                    {/* Start & End Timestamps */}
+                    <td className="p-4 text-[#3D6E75] text-xs">
+                      {formatDateTime(r.started_at)}
+                    </td>
+                    <td className="p-4 text-[#3D6E75] text-xs">
+                      {formatDateTime(r.test_end_time)}
+                    </td>
+
+                    {/* Admin Action Buttons */}
                     <td className="p-4 pr-6 text-center">
-                      <div className="flex items-center justify-center space-x-1.5">
+                      <div className="flex items-center justify-center space-x-1.5 flex-wrap gap-1">
                         <button
                           onClick={() => handleOpenDetailModal(r.participant_db_id)}
                           className="p-1.5 rounded-xl bg-[#EBF7F7] hover:bg-[#2C6A74] hover:text-white text-[#0F2F34] border border-[#AEE3E0] transition-colors cursor-pointer"
-                          title="View Answer Breakdown"
+                          title="Inspect Answer Sheet"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
 
+                        {/* Unblock Candidate (Only for BLOCKED) */}
+                        {r.status === 'BLOCKED' && (
+                          <button
+                            onClick={() => handleUnblockCandidate(r.phone)}
+                            className="px-2.5 py-1 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                            title="Unblock Candidate (Resumes existing timer if time remains)"
+                          >
+                            <Unlock className="w-3.5 h-3.5 text-emerald-700" />
+                            <span>Unblock Candidate</span>
+                          </button>
+                        )}
+
+                        {/* Reset & Restart Attempt */}
                         <button
-                          onClick={() => handleAllowRetake(r.phone)}
-                          className="p-1.5 rounded-xl bg-[#EBF7F7] hover:bg-[#AEE3E0] text-[#0F2F34] border border-[#AEE3E0] transition-colors cursor-pointer"
-                          title="Allow Retake Attempt"
+                          onClick={() => handleResetAttempt(r.phone)}
+                          className="px-2 py-1 rounded-xl bg-[#AEE3E0] hover:bg-[#9CD5D2] text-[#0F2F34] border border-[#5DA9B0]/40 text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                          title="Reset & Restart Attempt (Starts fresh attempt & timer)"
                         >
-                          <RotateCcw className="w-4 h-4 text-[#2C6A74]" />
+                          <RotateCcw className="w-3.5 h-3.5 text-[#2C6A74]" />
+                          <span>Reset & Restart</span>
                         </button>
 
+                        {/* Remove Registration */}
                         <button
-                          onClick={() => handleToggleBlock(r.phone)}
-                          className={`p-1.5 rounded-xl border transition-colors cursor-pointer ${
-                            r.access_status === 'BLOCKED'
-                              ? 'bg-red-100 text-red-700 border-red-200'
-                              : 'bg-[#EBF7F7] text-[#3D6E75] border-[#AEE3E0] hover:bg-red-50 hover:text-red-600'
-                          }`}
-                          title={r.access_status === 'BLOCKED' ? 'Unblock Candidate' : 'Block Candidate'}
+                          onClick={() => handleRemoveRegistration(r.phone, r.name)}
+                          className="p-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-colors cursor-pointer"
+                          title="Remove Registration (Frees phone for re-registration)"
                         >
-                          {r.access_status === 'BLOCKED' ? <Unlock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                          <UserX className="w-4 h-4" />
                         </button>
                       </div>
                     </td>

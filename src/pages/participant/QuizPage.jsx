@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Check, Clock, Send, AlertTriangle, Menu, X, CheckCircle2, Edit3, Eye, ShieldAlert, Lock } from 'lucide-react';
 
@@ -11,18 +11,22 @@ export default function QuizPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isBlocked, setIsBlocked] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
 
-  // Configurable countdown timer (defaults to 30 mins if not fetched)
-  const [timeLeft, setTimeLeft] = useState(1800);
+  // Server-authoritative timer state
+  const [timeLeft, setTimeLeft] = useState(0);
+  const testEndTimeRef = useRef(null);
 
-  // Modals & Drawers
+  // Modals & UI State
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showUnansweredModal, setShowUnansweredModal] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [tabWarnings, setTabWarnings] = useState(0);
+  const [warningCount, setWarningCount] = useState(0);
+  const [warningMessage, setWarningMessage] = useState('');
   const [showWarningModal, setShowWarningModal] = useState(false);
+  const isSendingViolationRef = useRef(false);
 
   useEffect(() => {
     const savedPhone = localStorage.getItem('participant_phone');
@@ -48,110 +52,144 @@ export default function QuizPage() {
         return;
       }
 
+      if (sessData.status === 'EXPIRED') {
+        setIsExpired(true);
+        setSession(sessData);
+        setLoading(false);
+        return;
+      }
+
       if (sessData.status === 'COMPLETED' && sessData.access_status !== 'ALLOWED_RETAKE') {
         navigate('/quiz/submitted');
         return;
       }
 
+      if (sessData.status === 'REGISTERED') {
+        navigate('/quiz/start');
+        return;
+      }
+
       setSession(sessData);
+      setWarningCount(sessData.warning_count || 0);
+
       if (sessData.savedAnswers) {
         setAnswers(sessData.savedAnswers);
       }
 
+      if (sessData.test_end_time) {
+        testEndTimeRef.current = new Date(sessData.test_end_time).getTime();
+        const initialSecs = Math.max(0, Math.floor((testEndTimeRef.current - Date.now()) / 1000));
+        setTimeLeft(initialSecs);
+        if (initialSecs <= 0) {
+          setIsExpired(true);
+        }
+      }
+
       // 2. Fetch Sanitized Questions
-      const qRes = await fetch('/api/quiz/questions');
-      if (!qRes.ok) throw new Error('Failed to fetch questions.');
+      const qRes = await fetch(`/api/quiz/questions?phone=${phone}`);
+      if (!qRes.ok) {
+        const errData = await qRes.json();
+        if (errData.status === 'BLOCKED') setIsBlocked(true);
+        if (errData.status === 'EXPIRED') setIsExpired(true);
+        throw new Error(errData.error || 'Failed to fetch questions.');
+      }
       const qData = await qRes.json();
       setQuestions(qData);
 
-      // 3. Fetch Public Quiz Settings (Duration)
-      const settingsRes = await fetch('/api/quiz/settings');
-      if (settingsRes.ok) {
-        const settingsData = await settingsRes.json();
-        if (settingsData.durationMinutes) {
-          setTimeLeft(settingsData.durationMinutes * 60);
-        }
+      // Attempt fullscreen request on quiz load
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
       }
 
       setLoading(false);
     } catch (err) {
       console.error('Quiz init error:', err);
-      setError('Unable to load quiz content. Please ensure server is running.');
+      if (!isBlocked && !isExpired) {
+        setError(err.message || 'Unable to load quiz content. Please ensure server is running.');
+      }
       setLoading(false);
     }
   };
 
-  // Tab Switch & Window Blur Detection Effect
-  useEffect(() => {
-    if (loading || submitting || isBlocked || !session || !session.phone) return;
+  // Security Violation Reporter with Server-Side Deduplication & Cooldown
+  const handleSecurityViolation = async () => {
+    if (loading || submitting || isBlocked || isExpired || !session || !session.phone) return;
+    if (isSendingViolationRef.current) return;
 
-    const handleViolation = () => {
-      if (showWarningModal) return;
+    isSendingViolationRef.current = true;
+    setTimeout(() => {
+      isSendingViolationRef.current = false;
+    }, 2500);
 
-      setTabWarnings((prevWarnings) => {
-        if (prevWarnings === 0) {
-          setShowWarningModal(true);
-          return 1;
-        } else {
-          triggerTabSwitchBlock();
-          return prevWarnings + 1;
-        }
+    try {
+      const res = await fetch('/api/quiz/tab-switch-block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: session.phone }),
       });
-    };
 
-    const handleTabSwitch = () => {
+      const data = await res.json();
+      if (data.status === 'BLOCKED' || data.blocked || data.warningCount >= 3) {
+        setIsBlocked(true);
+        setShowWarningModal(false);
+        setWarningCount(3);
+      } else if (data.warningCount === 1 || data.warningCount === 2) {
+        setWarningCount(data.warningCount);
+        setWarningMessage(data.message || (data.warningCount === 1 ? 'Warning 1 of 3: Leaving the quiz/fullscreen or switching tabs is not allowed.' : 'Final Warning: One more violation will block your test.'));
+        setShowWarningModal(true);
+      }
+    } catch (err) {
+      console.error('Error reporting security violation:', err);
+    }
+  };
+
+  // Tab Switch & Fullscreen Exit Detection Effect
+  useEffect(() => {
+    if (loading || submitting || isBlocked || isExpired || !session || !session.phone) return;
+
+    const handleVisibilityChange = () => {
       if (document.hidden || document.visibilityState === 'hidden') {
-        handleViolation();
+        handleSecurityViolation();
       }
     };
 
-    const handleWindowBlur = () => {
-      handleViolation();
-    };
-
-    const triggerTabSwitchBlock = async () => {
-      setIsBlocked(true);
-      setShowWarningModal(false);
-      try {
-        await fetch('/api/quiz/tab-switch-block', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: session.phone }),
-        });
-      } catch (err) {
-        console.error('Error reporting tab switch block:', err);
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && !submitting && !isBlocked && !isExpired) {
+        handleSecurityViolation();
       }
     };
 
-    document.addEventListener('visibilitychange', handleTabSwitch);
-    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
 
     return () => {
-      document.removeEventListener('visibilitychange', handleTabSwitch);
-      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
-  }, [loading, submitting, isBlocked, session, showWarningModal]);
+  }, [loading, submitting, isBlocked, isExpired, session]);
 
-  // Timer Effect
+  // Server-Authoritative Immutable Timer Effect
   useEffect(() => {
-    if (loading || isBlocked || showSubmitModal || showReviewModal || showUnansweredModal || submitting) return;
+    if (loading || isBlocked || isExpired || submitting || !testEndTimeRef.current) return;
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          handleFinalSubmit(); // Auto-submit on timeout
-          return 0;
-        }
-        return prev - 1;
-      });
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((testEndTimeRef.current - now) / 1000));
+      setTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        clearInterval(timer);
+        setIsExpired(true);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [loading, isBlocked, showSubmitModal, showReviewModal, showUnansweredModal, submitting]);
+  }, [loading, isBlocked, isExpired, submitting]);
 
-  // Handle Option Selection with Auto-Save
+  // Handle Option Selection with Real-Time Server Auto-Save
   const handleSelectOption = (questionId, optionKey) => {
+    if (isBlocked || isExpired || submitting) return;
+
     const newAnswers = { ...answers, [questionId]: optionKey };
     setAnswers(newAnswers);
 
@@ -164,11 +202,19 @@ export default function QuizPage() {
           question_id: questionId,
           selected_answer: optionKey,
         }),
-      }).catch((e) => console.error('Auto-save error:', e));
+      })
+      .then((res) => {
+        if (!res.ok) {
+          return res.json().then(data => {
+            if (data.status === 'EXPIRED') setIsExpired(true);
+            if (data.status === 'BLOCKED') setIsBlocked(true);
+          });
+        }
+      })
+      .catch((e) => console.error('Auto-save error:', e));
     }
   };
 
-  // Check unanswered questions
   const getUnansweredQuestionIndices = () => {
     return questions
       .map((q, idx) => ({ qId: q.id, index: idx + 1, answered: !!answers[q.id] }))
@@ -184,7 +230,7 @@ export default function QuizPage() {
     }
   };
 
-  // Final Submit Action
+  // Final Submit Action with Fullscreen Exit ONLY on successful submission
   const handleFinalSubmit = async () => {
     if (!session || !session.phone || submitting) return;
 
@@ -209,13 +255,22 @@ export default function QuizPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        if (data.unansweredCount) {
+        if (data.status === 'EXPIRED') {
+          setIsExpired(true);
+        } else if (data.status === 'BLOCKED') {
+          setIsBlocked(true);
+        } else if (data.unansweredCount) {
           setShowUnansweredModal(true);
         } else {
           setError(data.error || 'Submission failed.');
         }
         setSubmitting(false);
         return;
+      }
+
+      // ONLY AFTER SUCCESSFUL SUBMISSION: Exit browser fullscreen mode
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
       }
 
       navigate('/quiz/submitted');
@@ -226,7 +281,6 @@ export default function QuizPage() {
     }
   };
 
-  // Jump to specific question for editing
   const handleJumpToQuestion = (index) => {
     setCurrentIndex(index);
     setShowReviewModal(false);
@@ -271,24 +325,24 @@ export default function QuizPage() {
               Examination Security Violation
             </span>
             <h2 className="text-2xl font-black text-[#0F2F34] tracking-tight">
-              QUIZ ATTEMPT LOCKED
+              QUIZ ATTEMPT BLOCKED
             </h2>
           </div>
 
           <div className="bg-[#EBF7F7] p-5 rounded-2xl border border-[#AEE3E0] text-left space-y-3">
             <div className="flex items-center space-x-2 text-red-600 font-bold text-xs uppercase tracking-wide">
               <ShieldAlert className="w-4 h-4 text-red-600" />
-              <span>Tab Switch / Window Blur Detected</span>
+              <span>3 Security Violations Exceeded</span>
             </div>
-            <p className="text-xs text-[#3D6E75] leading-relaxed">
-              You switched browser tabs, minimized the window, or lost active screen focus during the examination. Under official competition anti-cheating regulations, your quiz session has been immediately suspended.
+            <p className="text-xs text-[#0F2F34] font-medium leading-relaxed">
+              Your test has been blocked due to repeated violations. Please contact the administrator.
             </p>
           </div>
 
           <div className="p-4 bg-[#AEE3E0]/60 rounded-2xl border border-[#5DA9B0]/30 text-xs font-semibold text-[#0F2F34] space-y-1">
-            <p className="font-bold">Need assistance to resume?</p>
+            <p className="font-bold">Need assistance to unblock?</p>
             <p className="text-[#3D6E75]">
-              Please inform your exam invigilator / quiz administrator. They can verify and unblock your access directly from the admin dashboard.
+              Please inform your exam invigilator / quiz administrator. They can verify and unblock your candidate account from the Admin Panel if your test timer has not expired.
             </p>
           </div>
 
@@ -298,6 +352,41 @@ export default function QuizPage() {
             className="w-full py-3.5 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-extrabold border border-[#5DA9B0]/30 shadow-warm-sm transition-all cursor-pointer"
           >
             Check Status / Refresh
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isExpired) {
+    return (
+      <div className="min-h-[calc(100vh-9rem)] flex items-center justify-center p-4 bg-[#EBF7F7]">
+        <div className="bg-[#D0EFEF] rounded-[36px] p-8 sm:p-10 shadow-warm-lg max-w-lg w-full border border-[#AEE3E0] text-center space-y-6">
+          <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto border border-amber-300">
+            <Clock className="w-8 h-8 stroke-[2.5]" />
+          </div>
+
+          <div className="space-y-2">
+            <span className="px-3.5 py-1 bg-amber-100 text-amber-800 text-xs font-black uppercase tracking-wider rounded-full border border-amber-200 inline-block">
+              Time Limit Expired
+            </span>
+            <h2 className="text-2xl font-black text-[#0F2F34] tracking-tight">
+              EXAMINATION TIME EXPIRED
+            </h2>
+          </div>
+
+          <div className="bg-[#EBF7F7] p-5 rounded-2xl border border-[#AEE3E0] text-left space-y-2 text-xs">
+            <p className="font-bold text-[#0F2F34]">Your test session has expired.</p>
+            <p className="text-[#3D6E75]">Your answers have been saved in the database.</p>
+            <p className="text-[#3D6E75]">Please contact the administrator if you require another attempt.</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/quiz/submitted')}
+            className="w-full py-3.5 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-extrabold border border-[#5DA9B0]/30 shadow-warm-sm transition-all cursor-pointer"
+          >
+            View Saved Status
           </button>
         </div>
       </div>
@@ -360,7 +449,7 @@ export default function QuizPage() {
           </div>
         </div>
 
-        {/* Right: Timer & Action Buttons */}
+        {/* Right: Server-Authoritative Timer & Actions */}
         <div className="flex items-center space-x-2 sm:space-x-3">
           <div className="flex items-center space-x-2 bg-[#2C6A74] px-3.5 py-2 rounded-2xl text-white border border-[#5DA9B0]/30 shadow-xs">
             <Clock className="w-4 h-4 text-[#AEE3E0]" />
@@ -624,7 +713,7 @@ export default function QuizPage() {
         </div>
       )}
 
-      {/* REVIEW ALL ANSWERS MODAL (Scrollable list with Change Answer buttons) */}
+      {/* REVIEW ALL ANSWERS MODAL */}
       {showReviewModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#D0EFEF] rounded-[36px] max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-warm-lg border border-[#AEE3E0]">
@@ -829,35 +918,55 @@ export default function QuizPage() {
         </div>
       )}
 
-      {/* 1-WARNING TAB SWITCH MODAL */}
+      {/* WARNING MODAL (STAGE 1 & STAGE 2) */}
       {showWarningModal && !isBlocked && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-[#D0EFEF] rounded-[32px] max-w-md w-full p-8 shadow-warm-lg border border-[#AEE3E0] space-y-5 text-center animate-in fade-in zoom-in duration-200">
             
-            <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto border border-amber-300">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto border ${
+              warningCount === 2
+                ? 'bg-red-100 text-red-700 border-red-300'
+                : 'bg-amber-100 text-amber-700 border-amber-300'
+            }`}>
               <AlertTriangle className="w-8 h-8" />
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-xl font-black text-[#0F2F34] uppercase">Tab Switch Warning</h3>
-              <div className="inline-block bg-amber-50 text-amber-800 text-xs font-bold px-3 py-1 rounded-full border border-amber-200 mb-1">
-                ⚠️ Warning 1 of 1 Triggered
+              <h3 className="text-xl font-black text-[#0F2F34] uppercase">
+                {warningCount === 2 ? 'Final Security Warning' : 'Tab Switch Warning'}
+              </h3>
+
+              <div className={`inline-block text-xs font-extrabold px-3.5 py-1 rounded-full border mb-1 ${
+                warningCount === 2
+                  ? 'bg-red-100 text-red-800 border-red-300'
+                  : 'bg-amber-100 text-amber-800 border-amber-300'
+              }`}>
+                {warningCount === 2 ? '⚠️ Warning 2 of 3 (FINAL WARNING)' : '⚠️ Warning 1 of 3'}
               </div>
-              <p className="text-xs text-[#3D6E75] pt-2 leading-relaxed">
-                Switching tabs or leaving the quiz window is strictly prohibited. This is your <strong>first and only warning</strong>.
-              </p>
-              <p className="text-xs font-bold text-red-600">
-                Leaving the window again will permanently lock your quiz!
+
+              <p className="text-xs text-[#0F2F34] font-semibold pt-2 leading-relaxed">
+                {warningMessage || (warningCount === 2
+                  ? 'Final Warning: One more violation will block your test.'
+                  : 'Warning 1 of 3: Leaving the quiz/fullscreen or switching tabs is not allowed.')}
               </p>
             </div>
 
             <div className="pt-2">
               <button
                 type="button"
-                onClick={() => setShowWarningModal(false)}
-                className="w-full py-3.5 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-sm font-extrabold border border-[#5DA9B0]/30 shadow-warm-sm transition-all cursor-pointer"
+                onClick={() => {
+                  setShowWarningModal(false);
+                  if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                  }
+                }}
+                className={`w-full py-3.5 text-white rounded-2xl text-sm font-extrabold shadow-warm-sm transition-all cursor-pointer ${
+                  warningCount === 2
+                    ? 'bg-red-700 hover:bg-red-800 border border-red-800'
+                    : 'bg-[#2C6A74] hover:bg-[#22555D] border border-[#5DA9B0]/30'
+                }`}
               >
-                Go Back to Quiz
+                Return to Quiz
               </button>
             </div>
 
