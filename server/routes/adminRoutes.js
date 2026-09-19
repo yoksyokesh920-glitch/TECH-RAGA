@@ -79,7 +79,6 @@ router.get('/results', (req, res) => {
       p.name,
       p.phone,
       p.college,
-      p.email,
       p.access_status,
       p.created_at as registered_at,
       a.id as attempt_id,

@@ -9,8 +9,10 @@ const __dirname = path.dirname(__filename);
 const dbPath = path.join(__dirname, 'quiz_database.db');
 const db = new Database(dbPath);
 
-// Enable WAL mode
+// Enable WAL mode & concurrency tuning (busy timeout to handle simultaneous writes)
 db.pragma('journal_mode = WAL');
+db.pragma('busy_timeout = 5000');
+db.pragma('synchronous = NORMAL');
 
 export function initDatabase() {
   // Drop old tables if participant_id column exists from previous version to cleanly migrate
@@ -34,7 +36,6 @@ export function initDatabase() {
       name TEXT NOT NULL,
       phone TEXT UNIQUE NOT NULL,
       college TEXT NOT NULL,
-      email TEXT,
       access_status TEXT DEFAULT 'ALLOWED',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -102,7 +103,9 @@ export function initDatabase() {
       value TEXT NOT NULL
     )
   `);
-  db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('quiz_duration_minutes', '30')").run();
+  // 7. PERFORMANCE INDEXES FOR 200+ CONCURRENT USERS
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_attempts_participant ON quiz_attempts(participant_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_answers_attempt ON answers(attempt_id)`);
 
   // Seed Admin user if none exists
   const adminCount = db.prepare('SELECT COUNT(*) as count FROM admin_users').get().count;
