@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserCheck, GraduationCap, CheckCircle2, Play, AlertCircle, Mail } from 'lucide-react';
+import { UserCheck, GraduationCap, CheckCircle2, Play, AlertCircle } from 'lucide-react';
 
 export default function QuizStartPage() {
   const navigate = useNavigate();
@@ -18,9 +18,7 @@ export default function QuizStartPage() {
     fetch(`/api/participant/session/${savedPhone}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.access_status === 'BLOCKED' || data.status === 'BLOCKED') {
-          navigate('/quiz');
-        } else if (data.status === 'COMPLETED' && data.access_status !== 'ALLOWED_RETAKE') {
+        if (data.status === 'COMPLETED' && data.access_status !== 'ALLOWED_RETAKE') {
           navigate('/quiz/submitted');
         } else {
           setSession(data);
@@ -60,76 +58,64 @@ export default function QuizStartPage() {
   if (!session) return null;
 
   return (
-    <div className="min-h-[calc(100vh-9rem)] py-12 px-4 sm:px-6 lg:px-8 bg-[#F0F8F8] flex items-center justify-center">
-      <div className="max-w-2xl w-full bg-white rounded-[32px] shadow-ocean-md border border-[#AEE3E0] overflow-hidden">
+    <div className="min-h-[calc(100vh-9rem)] py-12 px-4 sm:px-6 lg:px-8 bg-[#EDEEE9] flex items-center justify-center">
+      <div className="max-w-2xl w-full bg-[#F5EBE1] rounded-[32px] shadow-warm-md border border-[#E3D5CA] overflow-hidden">
         
         {/* Header Banner */}
-        <div className="bg-[#2C6A74] p-8 text-white text-center border-b border-[#23555E]">
-          <span className="inline-block px-3.5 py-1 bg-white/20 text-white text-xs font-semibold rounded-full mb-2">
+        <div className="bg-[#D7BDB0] p-8 text-[#171717] text-center border-b border-[#E3D5CA]">
+          <span className="inline-block px-3.5 py-1 bg-[#F5EBE1] text-[#171717] text-xs font-semibold rounded-full mb-2">
             Welcome Participant
           </span>
           <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight">Quiz Instructions</h2>
-          <p className="text-xs text-[#D0EFEF] mt-1">Please read all instructions before starting the quiz.</p>
+          <p className="text-xs text-[#68635F] mt-1">Please read all instructions before starting the quiz.</p>
         </div>
 
         <div className="p-8 space-y-6">
           
           {/* Candidate Info Summary */}
-          <div className="bg-[#F0F8F8] border border-[#AEE3E0] rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+          <div className="bg-[#EDEEE9] border border-[#D6CCC2] rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#AEE3E0] flex items-center justify-center text-[#2C6A74]">
+              <div className="w-10 h-10 rounded-xl bg-[#E3D5CA] flex items-center justify-center text-[#171717]">
                 <UserCheck className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#2C6A74]">Candidate Name</p>
-                <p className="text-sm font-bold text-[#0F3238]">{session.name}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#68635F]">Candidate Name</p>
+                <p className="text-sm font-bold text-[#171717]">{session.name}</p>
               </div>
             </div>
 
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[#AEE3E0] flex items-center justify-center text-[#2C6A74]">
+              <div className="w-10 h-10 rounded-xl bg-[#E3D5CA] flex items-center justify-center text-[#171717]">
                 <GraduationCap className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#2C6A74]">College</p>
-                <p className="text-sm font-bold text-[#0F3238]">{session.college}</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#68635F]">College</p>
+                <p className="text-sm font-bold text-[#171717]">{session.college}</p>
               </div>
             </div>
-
-            {session.email && (
-              <div className="flex items-center space-x-3 sm:col-span-2 border-t border-[#AEE3E0]/60 pt-3">
-                <div className="w-10 h-10 rounded-xl bg-[#AEE3E0] flex items-center justify-center text-[#2C6A74]">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#2C6A74]">Email Address</p>
-                  <p className="text-sm font-bold text-[#0F3238]">{session.email}</p>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Guidelines */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#0F3238] border-b border-[#AEE3E0] pb-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-[#171717] border-b border-[#E3D5CA] pb-2">
               Rules & Format
             </h3>
             
-            <ul className="space-y-2.5 text-xs text-[#0F3238]">
+            <ul className="space-y-2.5 text-xs text-[#171717]">
               <li className="flex items-start space-x-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2C6A74] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-[#68635F] shrink-0 mt-0.5" />
                 <span>Read every question carefully. Select <strong>one answer</strong> per question.</span>
               </li>
               <li className="flex items-start space-x-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2C6A74] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-[#68635F] shrink-0 mt-0.5" />
                 <span>Selected responses are saved automatically in real-time.</span>
               </li>
               <li className="flex items-start space-x-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2C6A74] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-[#68635F] shrink-0 mt-0.5" />
                 <span>Use the <strong>Right-side Question Navigator</strong> to jump directly to any question.</span>
               </li>
               <li className="flex items-start space-x-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2C6A74] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-[#68635F] shrink-0 mt-0.5" />
                 <span><strong>Every question must be answered</strong> before final submission is allowed.</span>
               </li>
               <li className="flex items-start space-x-2.5 text-red-700 bg-red-50 p-2.5 rounded-xl border border-red-200 font-medium">
@@ -137,11 +123,11 @@ export default function QuizStartPage() {
                 <span><strong>Tab Switching Prohibition:</strong> Switching tabs or opening other windows is strictly monitored. Switching tabs will <strong>immediately lock your quiz</strong>, requiring administrator unblocking.</span>
               </li>
               <li className="flex items-start space-x-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2C6A74] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-[#68635F] shrink-0 mt-0.5" />
                 <span>Do not refresh or navigate away from the browser tab during the attempt.</span>
               </li>
               <li className="flex items-start space-x-2.5">
-                <CheckCircle2 className="w-4 h-4 text-[#2C6A74] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-[#68635F] shrink-0 mt-0.5" />
                 <span>Scores and answer keys will <strong>not be displayed</strong> upon completion. Results are announced by organizers.</span>
               </li>
             </ul>
@@ -159,7 +145,7 @@ export default function QuizStartPage() {
             <button
               onClick={handleStartQuiz}
               disabled={loading}
-              className="w-full py-4 bg-[#2C6A74] hover:bg-[#23555E] text-white text-base font-extrabold rounded-2xl shadow-ocean-sm transition-all flex items-center justify-center space-x-2 border border-[#23555E] disabled:opacity-50"
+              className="w-full py-4 bg-[#D7BDB0] hover:bg-[#C5A99B] text-[#171717] text-base font-extrabold rounded-2xl shadow-warm-sm transition-all flex items-center justify-center space-x-2 border border-[#E3D5CA] disabled:opacity-50"
             >
               {loading ? (
                 <span>Initializing Quiz...</span>
@@ -173,7 +159,6 @@ export default function QuizStartPage() {
           </div>
 
         </div>
-
       </div>
     </div>
   );
