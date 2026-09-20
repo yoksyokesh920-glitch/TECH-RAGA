@@ -93,21 +93,32 @@ export default function AdminQuestionsPage() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this question?')) return;
+  // Custom Delete Confirmation Modal State
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, questionId: null, questionText: '', deleting: false });
 
+  const openDeleteModal = (id, questionText) => {
+    setDeleteModal({ isOpen: true, questionId: id, questionText, deleting: false });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteModal.questionId) return;
+    setDeleteModal((prev) => ({ ...prev, deleting: true }));
     const token = localStorage.getItem('adminToken');
     try {
-      const res = await fetch(`/api/admin/questions/${id}`, {
+      const res = await fetch(`/api/admin/questions/${deleteModal.questionId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
 
       if (res.ok) {
+        setDeleteModal({ isOpen: false, questionId: null, questionText: '', deleting: false });
         fetchQuestionAnalysis();
+      } else {
+        setDeleteModal((prev) => ({ ...prev, deleting: false }));
       }
     } catch (e) {
       console.error(e);
+      setDeleteModal((prev) => ({ ...prev, deleting: false }));
     }
   };
 
@@ -434,7 +445,7 @@ export default function AdminQuestionsPage() {
                     <Edit2 className="w-3.5 h-3.5 text-[#2C6A74]" />
                   </button>
                   <button
-                    onClick={() => handleDelete(q.id)}
+                    onClick={() => openDeleteModal(q.id, q.question)}
                     className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition-colors border border-red-200 cursor-pointer"
                     title="Delete Question"
                   >

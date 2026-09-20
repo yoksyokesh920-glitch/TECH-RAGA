@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ArrowUpDown, Eye, Download, X, RotateCcw, Unlock, UserX } from 'lucide-react';
+import { Search, ArrowUpDown, Eye, Download, X, RotateCcw, Unlock, UserX, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function AdminResultsPage() {
   const navigate = useNavigate();
@@ -19,6 +19,23 @@ export default function AdminResultsPage() {
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [modalData, setModalData] = useState(null);
   const [loadingModal, setLoadingModal] = useState(false);
+
+  // Custom UI Action Confirmation Modal & Toast State
+  const [actionModal, setActionModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    badgeText: '',
+    iconType: '',
+    actionLoading: false,
+    onConfirm: null,
+  });
+  const [toast, setToast] = useState({ show: false, message: '' });
+
+  const showToast = (message) => {
+    setToast({ show: true, message });
+    setTimeout(() => setToast({ show: false, message: '' }), 4000);
+  };
 
   useEffect(() => {
     fetchResults();
@@ -99,9 +116,20 @@ export default function AdminResultsPage() {
   };
 
   // Admin Action: Reset & Restart Attempt (Creates a NEW attempt with fresh timer)
-  const handleResetAttempt = async (phone) => {
-    if (!window.confirm(`Explicitly authorize a fresh attempt for candidate with phone ${phone}?\nThis will create a new attempt and grant a fresh timer.`)) return;
+  const openResetModal = (phone, name) => {
+    setActionModal({
+      isOpen: true,
+      title: 'Reset & Restart Attempt',
+      badgeText: 'AUTHORIZE RETAKE',
+      iconType: 'RESET',
+      message: `Authorize a fresh attempt for ${name || 'candidate'} (${phone})? This will create a new attempt and grant a fresh timer.`,
+      actionLoading: false,
+      onConfirm: () => executeResetAttempt(phone),
+    });
+  };
 
+  const executeResetAttempt = async (phone) => {
+    setActionModal((prev) => ({ ...prev, actionLoading: true }));
     const token = localStorage.getItem('adminToken');
     try {
       const res = await fetch('/api/admin/participant/reset-attempt', {
@@ -115,18 +143,33 @@ export default function AdminResultsPage() {
 
       if (res.ok) {
         const data = await res.json();
-        alert(data.message || 'New attempt authorized cleanly.');
+        setActionModal((prev) => ({ ...prev, isOpen: false, actionLoading: false }));
+        showToast(data.message || 'New attempt authorized cleanly.');
         fetchResults();
+      } else {
+        setActionModal((prev) => ({ ...prev, actionLoading: false }));
       }
     } catch (e) {
       console.error(e);
+      setActionModal((prev) => ({ ...prev, actionLoading: false }));
     }
   };
 
   // Admin Action: Unblock Candidate (Resumes existing timer if time remains)
-  const handleUnblockCandidate = async (phone) => {
-    if (!window.confirm(`Unblock candidate with phone ${phone}?\nIf test time remains, candidate will resume their existing attempt.`)) return;
+  const openUnblockModal = (phone, name) => {
+    setActionModal({
+      isOpen: true,
+      title: 'Unblock Candidate',
+      badgeText: 'UNBLOCK ACCESS',
+      iconType: 'UNBLOCK',
+      message: `Unblock ${name || 'candidate'} (${phone})? If test time remains, candidate will be allowed to resume their active attempt.`,
+      actionLoading: false,
+      onConfirm: () => executeUnblockCandidate(phone),
+    });
+  };
 
+  const executeUnblockCandidate = async (phone) => {
+    setActionModal((prev) => ({ ...prev, actionLoading: true }));
     const token = localStorage.getItem('adminToken');
     try {
       const res = await fetch('/api/admin/participant/unblock', {
@@ -140,18 +183,33 @@ export default function AdminResultsPage() {
 
       if (res.ok) {
         const data = await res.json();
-        alert(data.message || 'Candidate unblocked.');
+        setActionModal((prev) => ({ ...prev, isOpen: false, actionLoading: false }));
+        showToast(data.message || 'Candidate unblocked successfully.');
         fetchResults();
+      } else {
+        setActionModal((prev) => ({ ...prev, actionLoading: false }));
       }
     } catch (e) {
       console.error(e);
+      setActionModal((prev) => ({ ...prev, actionLoading: false }));
     }
   };
 
   // Admin Action: Remove Registration (Allows phone number to re-register)
-  const handleRemoveRegistration = async (phone, name) => {
-    if (!window.confirm(`Are you sure you want to remove registration for candidate ${name} (${phone})?\nThis will allow this phone number to register again.`)) return;
+  const openRemoveModal = (phone, name) => {
+    setActionModal({
+      isOpen: true,
+      title: 'Remove Registration',
+      badgeText: 'REMOVE REGISTRATION',
+      iconType: 'REMOVE',
+      message: `Remove registration for candidate ${name || ''} (${phone})? This will free the phone number for re-registration.`,
+      actionLoading: false,
+      onConfirm: () => executeRemoveRegistration(phone),
+    });
+  };
 
+  const executeRemoveRegistration = async (phone) => {
+    setActionModal((prev) => ({ ...prev, actionLoading: true }));
     const token = localStorage.getItem('adminToken');
     try {
       const res = await fetch('/api/admin/participant/remove', {
@@ -165,11 +223,15 @@ export default function AdminResultsPage() {
 
       if (res.ok) {
         const data = await res.json();
-        alert(data.message || 'Registration removed successfully.');
+        setActionModal((prev) => ({ ...prev, isOpen: false, actionLoading: false }));
+        showToast(data.message || 'Registration removed successfully.');
         fetchResults();
+      } else {
+        setActionModal((prev) => ({ ...prev, actionLoading: false }));
       }
     } catch (e) {
       console.error(e);
+      setActionModal((prev) => ({ ...prev, actionLoading: false }));
     }
   };
 
@@ -419,7 +481,7 @@ export default function AdminResultsPage() {
                         {/* Unblock Candidate (Only for BLOCKED) */}
                         {r.status === 'BLOCKED' && (
                           <button
-                            onClick={() => handleUnblockCandidate(r.phone)}
+                            onClick={() => openUnblockModal(r.phone, r.name)}
                             className="px-2.5 py-1 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300 text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1"
                             title="Unblock Candidate (Resumes existing timer if time remains)"
                           >
@@ -430,7 +492,7 @@ export default function AdminResultsPage() {
 
                         {/* Reset & Restart Attempt */}
                         <button
-                          onClick={() => handleResetAttempt(r.phone)}
+                          onClick={() => openResetModal(r.phone, r.name)}
                           className="px-2 py-1 rounded-xl bg-[#AEE3E0] hover:bg-[#9CD5D2] text-[#0F2F34] border border-[#5DA9B0]/40 text-xs font-bold transition-colors cursor-pointer flex items-center space-x-1"
                           title="Reset & Restart Attempt (Starts fresh attempt & timer)"
                         >
@@ -440,7 +502,7 @@ export default function AdminResultsPage() {
 
                         {/* Remove Registration */}
                         <button
-                          onClick={() => handleRemoveRegistration(r.phone, r.name)}
+                          onClick={() => openRemoveModal(r.phone, r.name)}
                           className="p-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-colors cursor-pointer"
                           title="Remove Registration (Frees phone for re-registration)"
                         >
@@ -555,6 +617,89 @@ export default function AdminResultsPage() {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {/* CUSTOM UI ACTION CONFIRMATION MODAL */}
+      {actionModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#D0EFEF] rounded-[32px] max-w-md w-full p-8 shadow-warm-lg border border-[#AEE3E0] space-y-5 text-center animate-in fade-in zoom-in duration-200">
+            
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto border shadow-warm-sm ${
+              actionModal.iconType === 'REMOVE'
+                ? 'bg-red-100 text-red-600 border-red-300'
+                : actionModal.iconType === 'UNBLOCK'
+                ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                : 'bg-[#AEE3E0] text-[#2C6A74] border-[#5DA9B0]/40'
+            }`}>
+              {actionModal.iconType === 'REMOVE' ? (
+                <UserX className="w-8 h-8" />
+              ) : actionModal.iconType === 'UNBLOCK' ? (
+                <Unlock className="w-8 h-8" />
+              ) : (
+                <RotateCcw className="w-8 h-8" />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-3.5 py-1 rounded-full border ${
+                actionModal.iconType === 'REMOVE'
+                  ? 'bg-red-100 text-red-800 border-red-200'
+                  : actionModal.iconType === 'UNBLOCK'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : 'bg-[#AEE3E0] text-[#0F2F34] border-[#5DA9B0]/40'
+              }`}>
+                {actionModal.badgeText}
+              </span>
+
+              <h3 className="text-xl font-black text-[#0F2F34] uppercase tracking-tight">
+                {actionModal.title}
+              </h3>
+
+              <p className="text-xs text-[#3D6E75] font-semibold leading-relaxed pt-1">
+                {actionModal.message}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setActionModal({ ...actionModal, isOpen: false })}
+                disabled={actionModal.actionLoading}
+                className="py-3.5 bg-[#EBF7F7] hover:bg-[#AEE3E0] text-[#0F2F34] font-bold text-xs rounded-2xl border border-[#AEE3E0] transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={actionModal.onConfirm}
+                disabled={actionModal.actionLoading}
+                className={`py-3.5 text-white font-extrabold text-xs rounded-2xl shadow-warm-sm transition-all flex items-center justify-center space-x-1.5 border cursor-pointer ${
+                  actionModal.iconType === 'REMOVE'
+                    ? 'bg-red-600 hover:bg-red-700 border-red-700'
+                    : actionModal.iconType === 'UNBLOCK'
+                    ? 'bg-emerald-700 hover:bg-emerald-800 border-emerald-800'
+                    : 'bg-[#2C6A74] hover:bg-[#22555D] border-[#5DA9B0]/30'
+                }`}
+              >
+                {actionModal.actionLoading ? (
+                  <span>Processing...</span>
+                ) : (
+                  <span>Confirm</span>
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* FLOATING SUCCESS TOAST NOTIFICATION */}
+      {toast.show && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#0F2F34] text-white px-5 py-3.5 rounded-2xl shadow-warm-lg border border-[#5DA9B0] flex items-center space-x-3 text-xs font-bold">
+          <CheckCircle2 className="w-5 h-5 text-[#AEE3E0]" />
+          <span>{toast.message}</span>
         </div>
       )}
 
