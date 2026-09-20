@@ -373,16 +373,16 @@ export default function AdminResultsPage() {
                       )}
                     </td>
 
-                    {/* Warning Count (Out of 3) */}
+                    {/* Warning Count (Out of 2) */}
                     <td className="p-4 text-center font-bold">
                       <span className={`px-2 py-0.5 rounded-lg text-xs ${
-                        (r.warning_count || 0) >= 3
+                        (r.warning_count || 0) >= 2
                           ? 'bg-red-100 text-red-700 font-extrabold'
                           : (r.warning_count || 0) > 0
                           ? 'bg-amber-100 text-amber-800 font-bold'
                           : 'bg-[#EBF7F7] text-[#3D6E75]'
                       }`}>
-                        {r.warning_count || 0} / 3
+                        {r.warning_count || 0} / 2
                       </span>
                     </td>
 

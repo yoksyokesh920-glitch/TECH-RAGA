@@ -358,7 +358,7 @@ router.post('/save-answer', (req, res) => {
   return res.json({ success: true });
 });
 
-// 5b. THREE-STAGE WARNING SYSTEM & DEDUPLICATION (3-VIOLATION POLICY)
+// 5b. TWO-STAGE WARNING SYSTEM & DEDUPLICATION (2-VIOLATION POLICY)
 router.post('/tab-switch-block', (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone is required.' });
@@ -383,9 +383,9 @@ router.post('/tab-switch-block', (req, res) => {
   if (latestAttempt.status === 'BLOCKED' || participant.access_status === 'BLOCKED') {
     return res.json({
       blocked: true,
-      warningCount: 3,
+      warningCount: 2,
       status: 'BLOCKED',
-      message: 'Your test has been blocked due to repeated violations. Please contact the administrator.'
+      message: 'Your test has been blocked due to repeated tab switching (2 warnings exceeded). Please contact administrator.'
     });
   }
 
@@ -396,14 +396,12 @@ router.post('/tab-switch-block', (req, res) => {
   if (nowMs - lastWarningMs < 3000) {
     const currentCount = latestAttempt.warning_count || 0;
     return res.json({
-      blocked: currentCount >= 3,
+      blocked: currentCount >= 2,
       warningCount: currentCount,
-      status: currentCount >= 3 ? 'BLOCKED' : 'IN_PROGRESS',
+      status: currentCount >= 2 ? 'BLOCKED' : 'IN_PROGRESS',
       message: currentCount === 1
-        ? 'Warning 1 of 3: Leaving the quiz/fullscreen or switching tabs is not allowed.'
-        : currentCount === 2
-        ? 'Final Warning: One more violation will block your test.'
-        : 'Your test has been blocked due to repeated violations. Please contact the administrator.'
+        ? 'Warning 1 of 2: Leaving the quiz/fullscreen or switching tabs is not allowed. 1 warning remaining.'
+        : 'Your test has been blocked due to repeated violations (2 warnings exceeded). Please contact administrator.'
     });
   }
 
@@ -421,30 +419,15 @@ router.post('/tab-switch-block', (req, res) => {
       blocked: false,
       warningCount: 1,
       status: 'IN_PROGRESS',
-      message: 'Warning 1 of 3: Leaving the quiz/fullscreen or switching tabs is not allowed.'
+      message: 'Warning 1 of 2: Leaving the quiz/fullscreen or switching tabs is not allowed. 1 warning remaining.'
     });
   }
 
-  if (newWarningCount === 2) {
-    db.prepare(`
-      UPDATE quiz_attempts 
-      SET warning_count = 2, tab_switch_count = 2, last_warning_at = ? 
-      WHERE id = ?
-    `).run(nowIso, latestAttempt.id);
-
-    return res.json({
-      blocked: false,
-      warningCount: 2,
-      status: 'IN_PROGRESS',
-      message: 'Final Warning: One more violation will block your test.'
-    });
-  }
-
-  // 3rd Violation -> Atomically Block candidate in DB transaction
+  // 2nd Violation -> Atomically Block candidate in DB transaction
   db.transaction(() => {
     db.prepare(`
       UPDATE quiz_attempts 
-      SET warning_count = 3, tab_switch_count = 3, status = 'BLOCKED', last_warning_at = ? 
+      SET warning_count = 2, tab_switch_count = 2, status = 'BLOCKED', last_warning_at = ? 
       WHERE id = ?
     `).run(nowIso, latestAttempt.id);
     
@@ -453,9 +436,9 @@ router.post('/tab-switch-block', (req, res) => {
 
   return res.json({
     blocked: true,
-    warningCount: 3,
+    warningCount: 2,
     status: 'BLOCKED',
-    message: 'Your test has been blocked due to repeated violations. Please contact the administrator.'
+    message: 'Your test has been blocked due to repeated violations (2 warnings exceeded). Please contact administrator.'
   });
 });
 

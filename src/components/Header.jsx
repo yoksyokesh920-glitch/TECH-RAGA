@@ -15,6 +15,26 @@ export default function Header() {
     navigate('/admin');
   };
 
+  if (location.pathname === '/quiz') {
+    return (
+      <header className="bg-[#2C6A74] text-white shadow-warm-md border-b border-[#5DA9B0]/30 py-3 px-6 flex items-center justify-between z-40 select-none">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-xl bg-[#AEE3E0] flex items-center justify-center border border-white/20">
+            <Award className="w-4 h-4 text-[#2C6A74]" />
+          </div>
+          <div>
+            <h1 className="font-bold text-sm tracking-tight text-white uppercase">Inter-College Quiz Competition</h1>
+            <p className="text-[10px] text-[#D0EFEF] font-semibold">Official Fullscreen Examination Workspace</p>
+          </div>
+        </div>
+        <div className="flex items-center space-x-2 bg-[#AEE3E0]/20 px-3 py-1 rounded-full border border-[#AEE3E0]/30 text-[11px] font-bold text-[#D0EFEF]">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>FULLSCREEN SECURITY ENFORCED</span>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="bg-[#2C6A74] text-white shadow-warm-md border-b border-[#5DA9B0]/30 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">

@@ -33,6 +33,15 @@ export default function QuizStartPage() {
     setLoading(true);
     setError('');
 
+    // Trigger full screen mode immediately on click gesture
+    try {
+      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch (e) {
+      console.warn('Fullscreen request omitted by browser:', e);
+    }
+
     try {
       const res = await fetch('/api/quiz/start', {
         method: 'POST',

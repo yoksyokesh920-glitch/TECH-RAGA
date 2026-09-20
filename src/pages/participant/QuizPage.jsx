@@ -26,6 +26,7 @@ export default function QuizPage() {
   const [warningCount, setWarningCount] = useState(0);
   const [warningMessage, setWarningMessage] = useState('');
   const [showWarningModal, setShowWarningModal] = useState(false);
+  const [showFullscreenLockModal, setShowFullscreenLockModal] = useState(false);
   const isSendingViolationRef = useRef(false);
 
   useEffect(() => {
@@ -129,13 +130,14 @@ export default function QuizPage() {
       });
 
       const data = await res.json();
-      if (data.status === 'BLOCKED' || data.blocked || data.warningCount >= 3) {
+      if (data.status === 'BLOCKED' || data.blocked || data.warningCount >= 2) {
         setIsBlocked(true);
         setShowWarningModal(false);
-        setWarningCount(3);
-      } else if (data.warningCount === 1 || data.warningCount === 2) {
-        setWarningCount(data.warningCount);
-        setWarningMessage(data.message || (data.warningCount === 1 ? 'Warning 1 of 3: Leaving the quiz/fullscreen or switching tabs is not allowed.' : 'Final Warning: One more violation will block your test.'));
+        setShowFullscreenLockModal(false);
+        setWarningCount(2);
+      } else if (data.warningCount === 1) {
+        setWarningCount(1);
+        setWarningMessage(data.message || 'Warning 1 of 2: Leaving the quiz/fullscreen or switching tabs is not allowed. 1 warning remaining.');
         setShowWarningModal(true);
       }
     } catch (err) {
@@ -149,13 +151,17 @@ export default function QuizPage() {
 
     const handleVisibilityChange = () => {
       if (document.hidden || document.visibilityState === 'hidden') {
+        setShowFullscreenLockModal(true);
         handleSecurityViolation();
       }
     };
 
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement && !submitting && !isBlocked && !isExpired) {
+        setShowFullscreenLockModal(true);
         handleSecurityViolation();
+      } else if (document.fullscreenElement) {
+        setShowFullscreenLockModal(false);
       }
     };
 
@@ -332,7 +338,7 @@ export default function QuizPage() {
           <div className="bg-[#EBF7F7] p-5 rounded-2xl border border-[#AEE3E0] text-left space-y-3">
             <div className="flex items-center space-x-2 text-red-600 font-bold text-xs uppercase tracking-wide">
               <ShieldAlert className="w-4 h-4 text-red-600" />
-              <span>3 Security Violations Exceeded</span>
+              <span>2 Security Violations Exceeded</span>
             </div>
             <p className="text-xs text-[#0F2F34] font-medium leading-relaxed">
               Your test has been blocked due to repeated violations. Please contact the administrator.
@@ -933,7 +939,7 @@ export default function QuizPage() {
 
             <div className="space-y-2">
               <h3 className="text-xl font-black text-[#0F2F34] uppercase">
-                {warningCount === 2 ? 'Final Security Warning' : 'Tab Switch Warning'}
+                {warningCount === 2 ? 'Final Security Warning' : 'Tab Switch / Window Blur Warning'}
               </h3>
 
               <div className={`inline-block text-xs font-extrabold px-3.5 py-1 rounded-full border mb-1 ${
@@ -941,13 +947,13 @@ export default function QuizPage() {
                   ? 'bg-red-100 text-red-800 border-red-300'
                   : 'bg-amber-100 text-amber-800 border-amber-300'
               }`}>
-                {warningCount === 2 ? '⚠️ Warning 2 of 3 (FINAL WARNING)' : '⚠️ Warning 1 of 3'}
+                {warningCount === 2 ? '⚠️ Warning 2 of 2 (FINAL WARNING)' : '⚠️ Warning 1 of 2 (1 Warning Remaining)'}
               </div>
 
               <p className="text-xs text-[#0F2F34] font-semibold pt-2 leading-relaxed">
                 {warningMessage || (warningCount === 2
-                  ? 'Final Warning: One more violation will block your test.'
-                  : 'Warning 1 of 3: Leaving the quiz/fullscreen or switching tabs is not allowed.')}
+                  ? 'Final Warning: Your quiz has been locked due to 2 security violations.'
+                  : 'Warning 1 of 2: Leaving the quiz/fullscreen or switching tabs is not allowed. 1 warning remaining.')}
               </p>
             </div>
 
@@ -966,10 +972,52 @@ export default function QuizPage() {
                     : 'bg-[#2C6A74] hover:bg-[#22555D] border border-[#5DA9B0]/30'
                 }`}
               >
-                Return to Quiz
+                Return to Fullscreen Quiz
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN LOCK CONCEALMENT OVERLAY */}
+      {showFullscreenLockModal && !isBlocked && !isExpired && (
+        <div className="fixed inset-0 z-[9999] bg-[#0F2F34] flex items-center justify-center p-6 text-center text-white">
+          <div className="bg-[#D0EFEF] text-[#0F2F34] rounded-[36px] p-8 sm:p-10 shadow-warm-lg max-w-lg w-full border border-[#AEE3E0] space-y-6">
+            <div className="w-16 h-16 rounded-3xl bg-red-100 text-red-600 flex items-center justify-center mx-auto border border-red-200">
+              <Lock className="w-8 h-8 stroke-[2.5]" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="px-3.5 py-1 bg-red-100 text-red-700 text-xs font-black uppercase tracking-wider rounded-full border border-red-200 inline-block">
+                Examination Security Violation
+              </span>
+              <h2 className="text-2xl font-black text-[#0F2F34] tracking-tight">
+                QUIZ ATTEMPT LOCKED
+              </h2>
+            </div>
+
+            <p className="text-xs text-[#0F2F34] font-semibold leading-relaxed">
+              Tab Switch / Window Blur Detected. You switched browser tabs, minimized the window, or lost active screen focus during the examination.
+            </p>
+
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs font-semibold text-amber-800 space-y-1">
+              <p className="font-bold">⚠️ Security Notice (2-Chance Policy)</p>
+              <p>Under official competition anti-cheating regulations, questions are hidden when screen focus is lost. 2 violations will permanently block your quiz attempt until administrator verification.</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!document.fullscreenElement) {
+                  document.documentElement.requestFullscreen().catch(() => {});
+                }
+                setShowFullscreenLockModal(false);
+              }}
+              className="w-full py-4 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-extrabold border border-[#5DA9B0]/30 shadow-warm-sm transition-all cursor-pointer"
+            >
+              Re-Enter Fullscreen Mode
+            </button>
           </div>
         </div>
       )}
