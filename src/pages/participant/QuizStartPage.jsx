@@ -129,7 +129,7 @@ export default function QuizStartPage() {
               </li>
               <li className="flex items-start space-x-2.5 text-red-800 bg-red-50 p-2.5 rounded-xl border border-red-200 font-medium">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                <span><strong>Security & 2-Chance Violation Policy:</strong> Switching tabs, minimizing, or losing window focus is strictly monitored. <strong>1st occurrence triggers an on-screen warning</strong>. A <strong>2nd violation immediately locks your quiz attempt</strong>, requiring administrator verification to unblock.</span>
+                <span><strong>Security & Warning Policy:</strong> Switching tabs, minimizing, or losing window focus is strictly monitored. <strong>You are allowed 2 warnings</strong> (1st warning & 2nd final warning). A <strong>3rd violation immediately locks your quiz attempt</strong>, requiring administrator verification to unblock.</span>
               </li>
               <li className="flex items-start space-x-2.5">
                 <CheckCircle2 className="w-4 h-4 text-[#5DA9B0] shrink-0 mt-0.5" />

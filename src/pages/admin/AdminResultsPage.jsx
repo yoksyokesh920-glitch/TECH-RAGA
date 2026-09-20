@@ -242,7 +242,7 @@ export default function AdminResultsPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search Name, Phone, College..."
+            placeholder="Search Name, Phone, Email, College..."
             className="w-full pl-9 pr-3 py-2 bg-[#EBF7F7] border border-[#AEE3E0] rounded-xl text-xs sm:text-sm text-[#0F2F34] focus:outline-none placeholder:text-[#3D6E75]/50"
           />
         </div>
@@ -314,6 +314,7 @@ export default function AdminResultsPage() {
               <tr className="bg-[#2C6A74] text-white text-xs font-extrabold uppercase tracking-wider border-b border-[#5DA9B0]/30">
                 <th className="p-4 pl-6">Candidate Name</th>
                 <th className="p-4">Phone</th>
+                <th className="p-4">Email</th>
                 <th className="p-4">College</th>
                 <th className="p-4 text-center">Status</th>
                 <th className="p-4 text-center">Warnings</th>
@@ -326,14 +327,14 @@ export default function AdminResultsPage() {
             <tbody className="divide-y divide-[#AEE3E0]/60 text-xs sm:text-sm text-[#0F2F34]">
               {loading ? (
                 <tr>
-                  <td colSpan="9" className="p-8 text-center text-[#3D6E75]">
+                  <td colSpan="10" className="p-8 text-center text-[#3D6E75]">
                     <div className="inline-block w-6 h-6 border-2 border-[#2C6A74] border-t-transparent rounded-full animate-spin mr-2" />
                     Loading participant records...
                   </td>
                 </tr>
               ) : results.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="p-8 text-center text-[#3D6E75] font-semibold">
+                  <td colSpan="10" className="p-8 text-center text-[#3D6E75] font-semibold">
                     No participant records match the query.
                   </td>
                 </tr>
@@ -342,6 +343,7 @@ export default function AdminResultsPage() {
                   <tr key={`${r.participant_db_id}-${r.attempt_id || 0}`} className="hover:bg-[#D0EFEF]/40 transition-colors">
                     <td className="p-4 pl-6 font-bold text-[#0F2F34]">{r.name}</td>
                     <td className="p-4 font-mono text-[#3D6E75]">{r.phone}</td>
+                    <td className="p-4 text-[#3D6E75]">{r.email || '-'}</td>
                     <td className="p-4">{r.college}</td>
                     
                     {/* Status Badge */}
@@ -477,7 +479,7 @@ export default function AdminResultsPage() {
                 <div className="p-8 text-center text-[#3D6E75]">Loading data...</div>
               ) : modalData ? (
                 <>
-                  <div className="bg-[#EBF7F7] border border-[#AEE3E0] p-4 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div className="bg-[#EBF7F7] border border-[#AEE3E0] p-4 rounded-2xl grid grid-cols-2 sm:grid-cols-5 gap-4 text-xs">
                     <div>
                       <p className="text-[#3D6E75] uppercase font-bold text-[10px]">Name</p>
                       <p className="font-bold text-[#0F2F34]">{modalData.participant?.name}</p>
@@ -485,6 +487,10 @@ export default function AdminResultsPage() {
                     <div>
                       <p className="text-[#3D6E75] uppercase font-bold text-[10px]">Phone</p>
                       <p className="font-bold text-[#0F2F34]">{modalData.participant?.phone}</p>
+                    </div>
+                    <div>
+                      <p className="text-[#3D6E75] uppercase font-bold text-[10px]">Email</p>
+                      <p className="font-bold text-[#0F2F34] truncate">{modalData.participant?.email || '-'}</p>
                     </div>
                     <div>
                       <p className="text-[#3D6E75] uppercase font-bold text-[10px]">College</p>

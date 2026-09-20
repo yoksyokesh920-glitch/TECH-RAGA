@@ -130,14 +130,14 @@ export default function QuizPage() {
       });
 
       const data = await res.json();
-      if (data.status === 'BLOCKED' || data.blocked || data.warningCount >= 2) {
+      if (data.status === 'BLOCKED' || data.blocked) {
         setIsBlocked(true);
         setShowWarningModal(false);
         setShowFullscreenLockModal(false);
-        setWarningCount(2);
-      } else if (data.warningCount === 1) {
-        setWarningCount(1);
-        setWarningMessage(data.message || 'Warning 1 of 2: Leaving the quiz/fullscreen or switching tabs is not allowed. 1 warning remaining.');
+        setWarningCount(3);
+      } else if (data.warningCount === 1 || data.warningCount === 2) {
+        setWarningCount(data.warningCount);
+        setWarningMessage(data.message);
         setShowWarningModal(true);
       }
     } catch (err) {
@@ -964,7 +964,7 @@ export default function QuizPage() {
 
               <p className="text-xs text-[#0F2F34] font-semibold pt-2 leading-relaxed">
                 {warningMessage || (warningCount === 2
-                  ? 'Final Warning: Your quiz has been locked due to 2 security violations.'
+                  ? 'Warning 2 of 2 (FINAL WARNING): Switching tabs or leaving full screen again will permanently block your test!'
                   : 'Warning 1 of 2: Leaving the quiz/fullscreen or switching tabs is not allowed. 1 warning remaining.')}
               </p>
             </div>
@@ -978,13 +978,13 @@ export default function QuizPage() {
                     document.documentElement.requestFullscreen().catch(() => {});
                   }
                 }}
-                className={`w-full py-3.5 text-white rounded-2xl text-sm font-extrabold shadow-warm-sm transition-all cursor-pointer ${
+                className={`w-full py-3.5 text-white rounded-2xl text-sm font-extrabold shadow-warm-sm transition-all cursor-pointer flex items-center justify-center space-x-2 ${
                   warningCount === 2
                     ? 'bg-red-700 hover:bg-red-800 border border-red-800'
                     : 'bg-[#2C6A74] hover:bg-[#22555D] border border-[#5DA9B0]/30'
                 }`}
               >
-                Return to Fullscreen Quiz
+                <span>← Go Back & Resume Quiz</span>
               </button>
             </div>
 
@@ -1014,8 +1014,8 @@ export default function QuizPage() {
             </p>
 
             <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-xs font-semibold text-amber-800 space-y-1">
-              <p className="font-bold">⚠️ Security Notice (2-Chance Policy)</p>
-              <p>Under official competition anti-cheating regulations, questions are hidden when screen focus is lost. 2 violations will permanently block your quiz attempt until administrator verification.</p>
+              <p className="font-bold">⚠️ Security Notice (2 Warnings Policy)</p>
+              <p>Under official competition anti-cheating regulations, questions are hidden when screen focus is lost. 2 warnings are allowed before a 3rd violation permanently blocks your attempt.</p>
             </div>
 
             <button
@@ -1026,9 +1026,9 @@ export default function QuizPage() {
                 }
                 setShowFullscreenLockModal(false);
               }}
-              className="w-full py-4 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-extrabold border border-[#5DA9B0]/30 shadow-warm-sm transition-all cursor-pointer"
+              className="w-full py-4 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-extrabold border border-[#5DA9B0]/30 shadow-warm-sm transition-all cursor-pointer flex items-center justify-center space-x-2"
             >
-              Re-Enter Fullscreen Mode
+              <span>← Go Back & Re-Enter Fullscreen</span>
             </button>
           </div>
         </div>

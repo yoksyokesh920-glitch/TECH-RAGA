@@ -7,6 +7,7 @@ export default function RegisterPage() {
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
+    email: '',
     college: '',
   });
   const [error, setError] = useState('');
@@ -65,6 +66,15 @@ export default function RegisterPage() {
     const cleanPhone = cleanAndValidatePhone(formData.phone);
     if (!cleanPhone) {
       setError('Please enter a valid 10-digit Indian phone number starting with 6, 7, 8, or 9.');
+      return;
+    }
+    if (!formData.email.trim()) {
+      setError('Email Address is required.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      setError('Please enter a valid email address.');
       return;
     }
     if (!formData.college.trim()) {
@@ -189,6 +199,22 @@ export default function RegisterPage() {
                     className="w-full bg-transparent text-sm font-semibold text-[#0F2F34] focus:outline-none placeholder:text-[#3D6E75]/50"
                   />
                   <p className="text-[10px] text-[#3D6E75] mt-1">Must be an exact 10-digit mobile number.</p>
+                </div>
+
+                {/* Field: Email Address */}
+                <div className="bg-[#EBF7F7] p-3.5 rounded-2xl border border-[#5DA9B0]/40 focus-within:ring-2 focus-within:ring-[#5DA9B0] transition-all">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#3D6E75] mb-1">
+                    EMAIL ADDRESS *
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Enter your email address"
+                    required
+                    className="w-full bg-transparent text-sm font-semibold text-[#0F2F34] focus:outline-none placeholder:text-[#3D6E75]/50"
+                  />
                 </div>
 
                 {/* Field: College Name */}

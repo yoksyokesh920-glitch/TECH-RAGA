@@ -89,6 +89,7 @@ router.get('/results', (req, res) => {
       p.id as participant_db_id,
       p.name,
       p.phone,
+      p.email,
       p.college,
       p.access_status,
       p.created_at as registered_at,
@@ -116,8 +117,8 @@ router.get('/results', (req, res) => {
 
   if (search && search.trim()) {
     const term = `%${search.trim()}%`;
-    query += ` AND (p.name LIKE ? OR p.phone LIKE ? OR p.college LIKE ?)`;
-    params.push(term, term, term);
+    query += ` AND (p.name LIKE ? OR p.phone LIKE ? OR p.college LIKE ? OR p.email LIKE ?)`;
+    params.push(term, term, term, term);
   }
 
   if (college && college.trim()) {
@@ -501,6 +502,7 @@ router.get('/export', (req, res) => {
     SELECT 
       p.name,
       p.phone,
+      p.email,
       p.college,
       a.attempt_number,
       a.score,
@@ -521,7 +523,7 @@ router.get('/export', (req, res) => {
     ORDER BY p.id ASC
   `).all();
 
-  let csvContent = 'Name,Phone,College,Attempt Number,Score,Total Marks,Percentage,Time Taken (s),Warning Count,Submitted At,Status\n';
+  let csvContent = 'Name,Phone,Email,College,Attempt Number,Score,Total Marks,Percentage,Time Taken (s),Warning Count,Submitted At,Status\n';
 
   rows.forEach(r => {
     const score = r.score !== null ? r.score : 0;
@@ -530,12 +532,13 @@ router.get('/export', (req, res) => {
     const timeTaken = r.time_taken || 0;
     const subAt = r.submitted_at ? `"${r.submitted_at}"` : 'N/A';
     const name = `"${(r.name || '').replace(/"/g, '""')}"`;
+    const email = `"${(r.email || '').replace(/"/g, '""')}"`;
     const college = `"${(r.college || '').replace(/"/g, '""')}"`;
     const attNum = r.attempt_number || 1;
     const warnCount = r.warning_count || 0;
     const status = (r.access_status === 'BLOCKED' || r.status === 'BLOCKED') ? 'BLOCKED' : (r.status || 'REGISTERED');
 
-    csvContent += `${name},${r.phone},${college},${attNum},${score},${tMarks},${pct}%,${timeTaken},${warnCount},${subAt},${status}\n`;
+    csvContent += `${name},${r.phone},${email},${college},${attNum},${score},${tMarks},${pct}%,${timeTaken},${warnCount},${subAt},${status}\n`;
   });
 
   res.setHeader('Content-Type', 'text/csv');

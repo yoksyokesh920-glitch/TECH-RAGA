@@ -59,11 +59,23 @@ export function initDatabase() {
       name TEXT NOT NULL,
       phone TEXT NOT NULL,
       college TEXT NOT NULL,
+      email TEXT,
       access_status TEXT DEFAULT 'ALLOWED',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Column Migration for email column in participants table
+  try {
+    const pCols = db.pragma('table_info(participants)');
+    const colNames = pCols.map(c => c.name);
+    if (!colNames.includes('email')) {
+      db.exec('ALTER TABLE participants ADD COLUMN email TEXT');
+    }
+  } catch (e) {
+    console.error('Error migrating participants email column:', e);
+  }
 
   // Handle duplicate phone numbers if any exist in existing database before enforcing index
   try {

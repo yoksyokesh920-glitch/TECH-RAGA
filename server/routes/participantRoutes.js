@@ -66,7 +66,7 @@ function checkAndUpdateAttemptExpiry(attempt) {
 
 // 1. PARTICIPANT REGISTRATION & PHONE ACCESS CONTROL
 router.post('/register', (req, res) => {
-  const { name, phone, college } = req.body;
+  const { name, phone, college, email } = req.body;
 
   // Validations
   if (!name || typeof name !== 'string' || !name.trim()) {
@@ -78,12 +78,22 @@ router.post('/register', (req, res) => {
     return res.status(400).json({ error: 'Please enter a valid 10-digit Indian phone number starting with 6, 7, 8, or 9.' });
   }
 
+  if (!email || typeof email !== 'string' || !email.trim()) {
+    return res.status(400).json({ error: 'Email Address cannot be empty.' });
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email.trim())) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+
   if (!college || typeof college !== 'string' || !college.trim()) {
     return res.status(400).json({ error: 'College Name cannot be empty.' });
   }
 
   const cleanName = name.trim();
   const cleanCollege = college.trim();
+  const cleanEmail = email.trim();
 
   // Check if active registration already exists for this phone number
   const existingPart = db.prepare("SELECT * FROM participants WHERE phone = ? AND access_status != 'REMOVED'").get(cleanPhone);
@@ -98,9 +108,9 @@ router.post('/register', (req, res) => {
   // Create New Participant & Attempt #1 atomically in a transaction
   const createNew = db.transaction(() => {
     const partResult = db.prepare(`
-      INSERT INTO participants (name, phone, college, access_status)
-      VALUES (?, ?, ?, 'ALLOWED')
-    `).run(cleanName, cleanPhone, cleanCollege);
+      INSERT INTO participants (name, phone, college, email, access_status)
+      VALUES (?, ?, ?, ?, 'ALLOWED')
+    `).run(cleanName, cleanPhone, cleanCollege, cleanEmail);
 
     const pId = partResult.lastInsertRowid;
 
@@ -119,6 +129,7 @@ router.post('/register', (req, res) => {
       phone: cleanPhone,
       name: cleanName,
       college: cleanCollege,
+      email: cleanEmail,
       attempt_id: attemptId,
       attempt_number: 1,
       status: 'REGISTERED'
@@ -185,6 +196,7 @@ router.get('/session/:phone', (req, res) => {
     phone: participant.phone,
     name: participant.name,
     college: participant.college,
+    email: participant.email || '',
     access_status: participant.access_status,
     attempt_id: latestAttempt ? latestAttempt.id : null,
     attempt_number: latestAttempt ? latestAttempt.attempt_number : 1,
@@ -379,7 +391,7 @@ router.post('/save-answer', (req, res) => {
   }
 });
 
-// 5b. TWO-STAGE WARNING SYSTEM & DEDUPLICATION (2-VIOLATION POLICY)
+// 5b. THREE-STAGE WARNING SYSTEM & DEDUPLICATION (2 WARNINGS ALLOWED, BLOCKS ON 3RD VIOLATION)
 router.post('/tab-switch-block', (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'Phone is required.' });
@@ -404,7 +416,7 @@ router.post('/tab-switch-block', (req, res) => {
   if (latestAttempt.status === 'BLOCKED' || participant.access_status === 'BLOCKED') {
     return res.json({
       blocked: true,
-      warningCount: 2,
+      warningCount: latestAttempt.warning_count || 2,
       status: 'BLOCKED',
       message: 'Your test has been blocked due to repeated tab switching (2 warnings exceeded). Please contact administrator.'
     });
@@ -417,11 +429,13 @@ router.post('/tab-switch-block', (req, res) => {
   if (nowMs - lastWarningMs < 3000) {
     const currentCount = latestAttempt.warning_count || 0;
     return res.json({
-      blocked: currentCount >= 2,
+      blocked: currentCount >= 3,
       warningCount: currentCount,
-      status: currentCount >= 2 ? 'BLOCKED' : 'IN_PROGRESS',
+      status: currentCount >= 3 ? 'BLOCKED' : 'IN_PROGRESS',
       message: currentCount === 1
         ? 'Warning 1 of 2: Leaving the quiz/fullscreen or switching tabs is not allowed. 1 warning remaining.'
+        : currentCount === 2
+        ? 'Warning 2 of 2 (FINAL WARNING): Switching tabs or leaving full screen again will permanently block your test!'
         : 'Your test has been blocked due to repeated violations (2 warnings exceeded). Please contact administrator.'
     });
   }
@@ -446,12 +460,29 @@ router.post('/tab-switch-block', (req, res) => {
     });
   }
 
-  // 2nd Violation -> Atomically Block candidate in DB transaction
+  if (newWarningCount === 2) {
+    dbWriteWithRetry(() => {
+      db.prepare(`
+        UPDATE quiz_attempts 
+        SET warning_count = 2, tab_switch_count = 2, last_warning_at = ? 
+        WHERE id = ?
+      `).run(nowIso, latestAttempt.id);
+    });
+
+    return res.json({
+      blocked: false,
+      warningCount: 2,
+      status: 'IN_PROGRESS',
+      message: 'Warning 2 of 2 (FINAL WARNING): Switching tabs or leaving full screen again will permanently block your test!'
+    });
+  }
+
+  // 3rd Violation -> Atomically Block candidate in DB transaction
   dbWriteWithRetry(() => {
     db.transaction(() => {
       db.prepare(`
         UPDATE quiz_attempts 
-        SET warning_count = 2, tab_switch_count = 2, status = 'BLOCKED', last_warning_at = ? 
+        SET warning_count = 3, tab_switch_count = 3, status = 'BLOCKED', last_warning_at = ? 
         WHERE id = ?
       `).run(nowIso, latestAttempt.id);
       
