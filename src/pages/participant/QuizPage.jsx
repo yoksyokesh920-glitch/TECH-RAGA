@@ -192,7 +192,7 @@ export default function QuizPage() {
     return () => clearInterval(timer);
   }, [loading, isBlocked, isExpired, submitting]);
 
-  // Handle Option Selection with Real-Time Server Auto-Save
+  // Handle Option Selection with Real-Time Server Auto-Save & Transparent Retry
   const handleSelectOption = (questionId, optionKey) => {
     if (isBlocked || isExpired || submitting) return;
 
@@ -200,24 +200,36 @@ export default function QuizPage() {
     setAnswers(newAnswers);
 
     if (session && session.phone) {
-      fetch('/api/quiz/save-answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: session.phone,
-          question_id: questionId,
-          selected_answer: optionKey,
-        }),
-      })
-      .then((res) => {
-        if (!res.ok) {
-          return res.json().then(data => {
-            if (data.status === 'EXPIRED') setIsExpired(true);
-            if (data.status === 'BLOCKED') setIsBlocked(true);
-          });
-        }
-      })
-      .catch((e) => console.error('Auto-save error:', e));
+      const saveWithRetry = (retriesLeft = 3, delay = 300) => {
+        fetch('/api/quiz/save-answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: session.phone,
+            question_id: questionId,
+            selected_answer: optionKey,
+          }),
+        })
+        .then((res) => {
+          if (!res.ok) {
+            return res.json().then(data => {
+              if (data.status === 'EXPIRED') setIsExpired(true);
+              if (data.status === 'BLOCKED') setIsBlocked(true);
+              if (retriesLeft > 0 && res.status >= 500) {
+                setTimeout(() => saveWithRetry(retriesLeft - 1, delay * 2), delay);
+              }
+            });
+          }
+        })
+        .catch((e) => {
+          console.warn(`Auto-save retry (${3 - retriesLeft + 1}):`, e);
+          if (retriesLeft > 0) {
+            setTimeout(() => saveWithRetry(retriesLeft - 1, delay * 2), delay);
+          }
+        });
+      };
+
+      saveWithRetry();
     }
   };
 

@@ -9,10 +9,33 @@ const __dirname = path.dirname(__filename);
 const dbPath = path.join(__dirname, 'quiz_database.db');
 const db = new Database(dbPath);
 
-// Enable WAL mode & concurrency tuning (busy timeout to handle simultaneous writes)
+// Enable WAL mode & concurrency tuning for 1000+ simultaneous participants
 db.pragma('journal_mode = WAL');
-db.pragma('busy_timeout = 5000');
+db.pragma('busy_timeout = 10000');
 db.pragma('synchronous = NORMAL');
+db.pragma('cache_size = -64000'); // 64MB memory page cache
+db.pragma('temp_store = MEMORY');
+db.pragma('mmap_size = 268435456'); // 256MB memory mapping for fast zero-copy reads
+
+// Helper function to execute write transactions with exponential backoff on SQLITE_BUSY
+export function dbWriteWithRetry(fn, maxRetries = 6, delayMs = 25) {
+  let attempt = 0;
+  while (true) {
+    try {
+      return fn();
+    } catch (err) {
+      const isBusy = err.code === 'SQLITE_BUSY' || err.code === 'SQLITE_LOCKED' || String(err).includes('locked');
+      if (isBusy && attempt < maxRetries) {
+        attempt++;
+        const wait = delayMs * Math.pow(2, attempt - 1);
+        const end = Date.now() + wait;
+        while (Date.now() < end) {}
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 
 export function initDatabase() {
   // Drop old tables if participant_id column exists from previous version to cleanly migrate
@@ -161,9 +184,12 @@ export function initDatabase() {
       value TEXT NOT NULL
     )
   `);
-  // 7. PERFORMANCE INDEXES FOR 200+ CONCURRENT USERS
+  // 7. PERFORMANCE INDEXES FOR 1000+ CONCURRENT PARTICIPANTS
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_participants_phone ON participants(phone)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_attempts_participant ON quiz_attempts(participant_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_quiz_attempts_status ON quiz_attempts(status)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_answers_attempt ON answers(attempt_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_answers_attempt_q ON answers(attempt_id, question_id)`);
 
   // Seed Admin user if none exists
   const adminCount = db.prepare('SELECT COUNT(*) as count FROM admin_users').get().count;

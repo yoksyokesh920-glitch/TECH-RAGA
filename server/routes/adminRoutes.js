@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import db from '../db.js';
 import { authenticateAdmin, JWT_SECRET } from '../middleware/auth.js';
+import { invalidateQuestionsCache } from './participantRoutes.js';
 
 const router = express.Router();
 
@@ -411,6 +412,7 @@ router.post('/questions/import', (req, res) => {
 
   try {
     const importedCount = importTx();
+    invalidateQuestionsCache();
     return res.status(201).json({
       message: `${importedCount} questions imported successfully.`,
       importedCount
@@ -446,6 +448,7 @@ router.post('/questions', (req, res) => {
     marks || 1
   );
 
+  invalidateQuestionsCache();
   return res.status(201).json({
     message: 'Question added successfully.',
     id: result.lastInsertRowid
@@ -476,6 +479,7 @@ router.put('/questions/:id', (req, res) => {
     id
   );
 
+  invalidateQuestionsCache();
   return res.json({ message: 'Question updated successfully.' });
 });
 
@@ -487,6 +491,7 @@ router.delete('/questions/:id', (req, res) => {
     db.prepare('DELETE FROM questions WHERE id = ?').run(id);
   })();
 
+  invalidateQuestionsCache();
   return res.json({ message: 'Question deleted successfully.' });
 });
 
