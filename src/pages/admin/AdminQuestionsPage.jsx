@@ -93,13 +93,14 @@ export default function AdminQuestionsPage() {
     setShowModal(true);
   };
 
-  // Delete Single Question Handler
-  const handleDeleteQuestion = async (id, questionText) => {
-    if (!window.confirm(`Are you sure you want to delete this question?\n\n"${questionText}"`)) {
-      return;
-    }
+  // Inline Delete State
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
+  const handleDeleteQuestion = async (id) => {
     const token = localStorage.getItem('adminToken');
+    setConfirmDeleteId(null);
+
+    // Optimistically update UI immediately
     setQuestions((prev) => prev.filter((q) => q.id !== id));
 
     try {
@@ -114,16 +115,9 @@ export default function AdminQuestionsPage() {
         return;
       }
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Failed to delete question.');
-        fetchQuestionAnalysis();
-      } else {
-        fetchQuestionAnalysis();
-      }
+      fetchQuestionAnalysis();
     } catch (e) {
       console.error('Delete question error:', e);
-      alert('Connection error while deleting question.');
       fetchQuestionAnalysis();
     }
   };
@@ -510,13 +504,32 @@ export default function AdminQuestionsPage() {
                   >
                     <Edit2 className="w-3.5 h-3.5 text-[#2C6A74]" />
                   </button>
-                  <button
-                    onClick={() => handleDeleteQuestion(q.id, q.question)}
-                    className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition-colors border border-red-200 cursor-pointer"
-                    title="Delete Question"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+
+                  {confirmDeleteId === q.id ? (
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        onClick={() => handleDeleteQuestion(q.id)}
+                        className="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black rounded-xl border border-red-300 shadow-warm-xs cursor-pointer animate-pulse"
+                      >
+                        Confirm Delete?
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="p-1.5 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 cursor-pointer"
+                        title="Cancel"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(q.id)}
+                      className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition-colors border border-red-200 cursor-pointer"
+                      title="Delete Question"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 
