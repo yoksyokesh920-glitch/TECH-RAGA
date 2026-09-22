@@ -484,6 +484,17 @@ router.put('/questions/:id', (req, res) => {
   return res.json({ message: 'Question updated successfully.' });
 });
 
+// Delete all questions
+router.delete('/questions', (req, res) => {
+  db.transaction(() => {
+    db.prepare('DELETE FROM answers').run();
+    db.prepare('DELETE FROM questions').run();
+  })();
+
+  invalidateQuestionsCache();
+  return res.json({ message: 'All questions cleared successfully.' });
+});
+
 router.delete('/questions/:id', (req, res) => {
   const { id } = req.params;
 

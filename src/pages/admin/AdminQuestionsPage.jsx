@@ -122,6 +122,30 @@ export default function AdminQuestionsPage() {
     }
   };
 
+  // Clear All Questions Confirmation Modal State
+  const [clearAllModal, setClearAllModal] = useState({ isOpen: false, clearing: false });
+
+  const executeClearAll = async () => {
+    setClearAllModal((prev) => ({ ...prev, clearing: true }));
+    const token = localStorage.getItem('adminToken');
+    try {
+      const res = await fetch('/api/admin/questions', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        setClearAllModal({ isOpen: false, clearing: false });
+        fetchQuestionAnalysis();
+      } else {
+        setClearAllModal((prev) => ({ ...prev, clearing: false }));
+      }
+    } catch (e) {
+      console.error(e);
+      setClearAllModal((prev) => ({ ...prev, clearing: false }));
+    }
+  };
+
   const handleSaveQuestion = async (e) => {
     e.preventDefault();
     setError('');
@@ -413,15 +437,41 @@ export default function AdminQuestionsPage() {
             <span>Import Questions (Plain Text)</span>
           </button>
 
-          <button
-            onClick={handleOpenAdd}
-            className="px-5 py-3 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-[#5DA9B0]/30 cursor-pointer"
-          >
-            <Plus className="w-4 h-4 text-white" />
-            <span>Add New Question</span>
-          </button>
+          {questions.length > 0 && (
+            <button
+              onClick={() => setClearAllModal({ isOpen: true, clearing: false })}
+              className="px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-red-300 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4 text-white" />
+              <span>Clear All Questions ({questions.length})</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Empty State */}
+      {questions.length === 0 && (
+        <div className="bg-[#D0EFEF]/40 border-2 border-dashed border-[#5DA9B0] rounded-[32px] p-12 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-[#AEE3E0] flex items-center justify-center mx-auto text-[#2C6A74]">
+            <FileText className="w-8 h-8" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-lg font-bold text-[#0F2F34]">Question Bank is Empty</h3>
+            <p className="text-xs text-[#3D6E75] max-w-md mx-auto">
+              No questions found. Add questions manually using "Add New Question" or upload a batch using "Import Questions".
+            </p>
+          </div>
+          <div className="flex items-center justify-center space-x-3 pt-2">
+            <button
+              onClick={handleOpenAdd}
+              className="px-6 py-3 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-white" />
+              <span>Add First Question</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Question Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -764,6 +814,86 @@ export default function AdminQuestionsPage() {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+      {/* Delete Question Confirmation Modal */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#D0EFEF] rounded-[32px] max-w-md w-full p-6 shadow-warm-lg border border-[#AEE3E0] space-y-4">
+            <div className="flex items-center justify-between border-b border-[#AEE3E0] pb-3">
+              <h3 className="text-lg font-bold text-[#0F2F34] uppercase">Delete Question</h3>
+              <button
+                onClick={() => setDeleteModal({ isOpen: false, questionId: null, questionText: '', deleting: false })}
+                className="p-1 rounded-full hover:bg-[#AEE3E0]"
+              >
+                <X className="w-5 h-5 text-[#0F2F34]" />
+              </button>
+            </div>
+            <p className="text-xs text-[#0F2F34]">
+              Are you sure you want to delete this question? This action cannot be undone.
+            </p>
+            <div className="p-3 bg-[#EBF7F7] rounded-2xl border border-[#AEE3E0] text-xs font-semibold text-[#0F2F34] max-h-24 overflow-y-auto">
+              "{deleteModal.questionText}"
+            </div>
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModal({ isOpen: false, questionId: null, questionText: '', deleting: false })}
+                className="w-1/2 py-3 bg-[#EBF7F7] text-[#0F2F34] rounded-2xl font-bold border border-[#AEE3E0] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeDelete}
+                disabled={deleteModal.deleting}
+                className="w-1/2 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-extrabold shadow-warm-sm border border-red-300 cursor-pointer disabled:opacity-50"
+              >
+                {deleteModal.deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear All Questions Confirmation Modal */}
+      {clearAllModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#D0EFEF] rounded-[32px] max-w-md w-full p-6 shadow-warm-lg border border-[#AEE3E0] space-y-4">
+            <div className="flex items-center justify-between border-b border-[#AEE3E0] pb-3">
+              <h3 className="text-lg font-bold text-red-700 uppercase flex items-center space-x-2">
+                <Trash2 className="w-5 h-5 text-red-600" />
+                <span>Clear All Questions</span>
+              </h3>
+              <button
+                onClick={() => setClearAllModal({ isOpen: false, clearing: false })}
+                className="p-1 rounded-full hover:bg-[#AEE3E0]"
+              >
+                <X className="w-5 h-5 text-[#0F2F34]" />
+              </button>
+            </div>
+            <div className="p-3 bg-red-50 rounded-2xl border border-red-200 text-xs font-medium text-red-800 space-y-1">
+              <p className="font-bold">⚠️ Warning: Permanent Action</p>
+              <p>This will delete ALL questions in the question bank ({questions.length} questions).</p>
+            </div>
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setClearAllModal({ isOpen: false, clearing: false })}
+                className="w-1/2 py-3 bg-[#EBF7F7] text-[#0F2F34] rounded-2xl font-bold border border-[#AEE3E0] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeClearAll}
+                disabled={clearAllModal.clearing}
+                className="w-1/2 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-extrabold shadow-warm-sm border border-red-300 cursor-pointer disabled:opacity-50"
+              >
+                {clearAllModal.clearing ? 'Clearing...' : 'Clear All'}
+              </button>
+            </div>
           </div>
         </div>
       )}
