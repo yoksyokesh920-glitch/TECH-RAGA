@@ -210,6 +210,8 @@ export function initDatabase() {
     const hash = bcrypt.hashSync('admin123', salt);
     db.prepare('INSERT INTO admin_users (username, password_hash) VALUES (?, ?)').run('admin', hash);
     console.log('Seeded default admin user: admin / admin123');
+  }
+
   console.log('Database initialized successfully with clean question table.');
 }
 

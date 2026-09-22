@@ -102,22 +102,33 @@ export default function AdminQuestionsPage() {
 
   const executeDelete = async () => {
     if (!deleteModal.questionId) return;
+    const targetId = deleteModal.questionId;
     setDeleteModal((prev) => ({ ...prev, deleting: true }));
     const token = localStorage.getItem('adminToken');
     try {
-      const res = await fetch(`/api/admin/questions/${deleteModal.questionId}`, {
+      const res = await fetch(`/api/admin/questions/${targetId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      if (res.status === 401) {
+        localStorage.removeItem('adminToken');
+        navigate('/admin');
+        return;
+      }
+
       if (res.ok) {
+        setQuestions((prev) => prev.filter((q) => q.id !== targetId));
         setDeleteModal({ isOpen: false, questionId: null, questionText: '', deleting: false });
         fetchQuestionAnalysis();
       } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Failed to delete question.');
         setDeleteModal((prev) => ({ ...prev, deleting: false }));
       }
     } catch (e) {
-      console.error(e);
+      console.error('Delete question error:', e);
+      alert('Connection error while deleting question.');
       setDeleteModal((prev) => ({ ...prev, deleting: false }));
     }
   };
@@ -134,14 +145,24 @@ export default function AdminQuestionsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
 
+      if (res.status === 401) {
+        localStorage.removeItem('adminToken');
+        navigate('/admin');
+        return;
+      }
+
       if (res.ok) {
+        setQuestions([]);
         setClearAllModal({ isOpen: false, clearing: false });
         fetchQuestionAnalysis();
       } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Failed to clear questions.');
         setClearAllModal((prev) => ({ ...prev, clearing: false }));
       }
     } catch (e) {
-      console.error(e);
+      console.error('Clear all questions error:', e);
+      alert('Connection error while clearing questions.');
       setClearAllModal((prev) => ({ ...prev, clearing: false }));
     }
   };
