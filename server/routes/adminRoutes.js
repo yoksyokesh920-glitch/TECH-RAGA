@@ -486,25 +486,40 @@ router.put('/questions/:id', (req, res) => {
 
 // Delete all questions
 router.delete('/questions', (req, res) => {
-  db.transaction(() => {
-    db.prepare('DELETE FROM answers').run();
-    db.prepare('DELETE FROM questions').run();
-  })();
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM answers').run();
+      db.prepare('DELETE FROM questions').run();
+    })();
 
-  invalidateQuestionsCache();
-  return res.json({ message: 'All questions cleared successfully.' });
+    invalidateQuestionsCache();
+    return res.json({ message: 'All questions cleared successfully.' });
+  } catch (err) {
+    console.error('Clear all questions error:', err);
+    return res.status(500).json({ error: 'Failed to clear all questions.' });
+  }
 });
 
 router.delete('/questions/:id', (req, res) => {
   const { id } = req.params;
+  const numericId = Number(id);
 
-  db.transaction(() => {
-    db.prepare('DELETE FROM answers WHERE question_id = ?').run(id);
-    db.prepare('DELETE FROM questions WHERE id = ?').run(id);
-  })();
+  if (!id || isNaN(numericId)) {
+    return res.status(400).json({ error: 'Invalid question ID.' });
+  }
 
-  invalidateQuestionsCache();
-  return res.json({ message: 'Question deleted successfully.' });
+  try {
+    db.transaction(() => {
+      db.prepare('DELETE FROM answers WHERE question_id = ?').run(numericId);
+      db.prepare('DELETE FROM questions WHERE id = ?').run(numericId);
+    })();
+
+    invalidateQuestionsCache();
+    return res.json({ message: 'Question deleted successfully.', id: numericId });
+  } catch (err) {
+    console.error('Delete question endpoint error:', err);
+    return res.status(500).json({ error: 'Failed to delete question from database.' });
+  }
 });
 
 // 9. EXPORT CSV (Deduplicated per participant)

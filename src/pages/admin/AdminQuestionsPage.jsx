@@ -93,20 +93,17 @@ export default function AdminQuestionsPage() {
     setShowModal(true);
   };
 
-  // Custom Delete Confirmation Modal State
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, questionId: null, questionText: '', deleting: false });
+  // Delete Single Question Handler
+  const handleDeleteQuestion = async (id, questionText) => {
+    if (!window.confirm(`Are you sure you want to delete this question?\n\n"${questionText}"`)) {
+      return;
+    }
 
-  const openDeleteModal = (id, questionText) => {
-    setDeleteModal({ isOpen: true, questionId: id, questionText, deleting: false });
-  };
-
-  const executeDelete = async () => {
-    if (!deleteModal.questionId) return;
-    const targetId = deleteModal.questionId;
-    setDeleteModal((prev) => ({ ...prev, deleting: true }));
     const token = localStorage.getItem('adminToken');
+    setQuestions((prev) => prev.filter((q) => q.id !== id));
+
     try {
-      const res = await fetch(`/api/admin/questions/${targetId}`, {
+      const res = await fetch(`/api/admin/questions/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -117,19 +114,17 @@ export default function AdminQuestionsPage() {
         return;
       }
 
-      if (res.ok) {
-        setQuestions((prev) => prev.filter((q) => q.id !== targetId));
-        setDeleteModal({ isOpen: false, questionId: null, questionText: '', deleting: false });
-        fetchQuestionAnalysis();
-      } else {
+      if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         alert(data.error || 'Failed to delete question.');
-        setDeleteModal((prev) => ({ ...prev, deleting: false }));
+        fetchQuestionAnalysis();
+      } else {
+        fetchQuestionAnalysis();
       }
     } catch (e) {
       console.error('Delete question error:', e);
       alert('Connection error while deleting question.');
-      setDeleteModal((prev) => ({ ...prev, deleting: false }));
+      fetchQuestionAnalysis();
     }
   };
 
@@ -516,7 +511,7 @@ export default function AdminQuestionsPage() {
                     <Edit2 className="w-3.5 h-3.5 text-[#2C6A74]" />
                   </button>
                   <button
-                    onClick={() => openDeleteModal(q.id, q.question)}
+                    onClick={() => handleDeleteQuestion(q.id, q.question)}
                     className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition-colors border border-red-200 cursor-pointer"
                     title="Delete Question"
                   >
@@ -838,45 +833,7 @@ export default function AdminQuestionsPage() {
           </div>
         </div>
       )}
-      {/* Delete Question Confirmation Modal */}
-      {deleteModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#D0EFEF] rounded-[32px] max-w-md w-full p-6 shadow-warm-lg border border-[#AEE3E0] space-y-4">
-            <div className="flex items-center justify-between border-b border-[#AEE3E0] pb-3">
-              <h3 className="text-lg font-bold text-[#0F2F34] uppercase">Delete Question</h3>
-              <button
-                onClick={() => setDeleteModal({ isOpen: false, questionId: null, questionText: '', deleting: false })}
-                className="p-1 rounded-full hover:bg-[#AEE3E0]"
-              >
-                <X className="w-5 h-5 text-[#0F2F34]" />
-              </button>
-            </div>
-            <p className="text-xs text-[#0F2F34]">
-              Are you sure you want to delete this question? This action cannot be undone.
-            </p>
-            <div className="p-3 bg-[#EBF7F7] rounded-2xl border border-[#AEE3E0] text-xs font-semibold text-[#0F2F34] max-h-24 overflow-y-auto">
-              "{deleteModal.questionText}"
-            </div>
-            <div className="flex items-center space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeleteModal({ isOpen: false, questionId: null, questionText: '', deleting: false })}
-                className="w-1/2 py-3 bg-[#EBF7F7] text-[#0F2F34] rounded-2xl font-bold border border-[#AEE3E0] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={executeDelete}
-                disabled={deleteModal.deleting}
-                className="w-1/2 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-extrabold shadow-warm-sm border border-red-300 cursor-pointer disabled:opacity-50"
-              >
-                {deleteModal.deleting ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Clear All Questions Confirmation Modal */}
       {clearAllModal.isOpen && (
