@@ -93,16 +93,15 @@ export default function AdminQuestionsPage() {
     setShowModal(true);
   };
 
-  // Inline Delete State
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  // Direct Instant Delete Single Question Handler
+  const handleDeleteSingleQuestion = async (e, id) => {
+    e.stopPropagation();
+    e.preventDefault();
 
-  const handleDeleteQuestion = async (id) => {
-    const token = localStorage.getItem('adminToken');
-    setConfirmDeleteId(null);
-
-    // Optimistically update UI immediately
+    // Optimistically remove from UI immediately
     setQuestions((prev) => prev.filter((q) => q.id !== id));
 
+    const token = localStorage.getItem('adminToken');
     try {
       const res = await fetch(`/api/admin/questions/${id}`, {
         method: 'DELETE',
@@ -114,19 +113,18 @@ export default function AdminQuestionsPage() {
         navigate('/admin');
         return;
       }
-
       fetchQuestionAnalysis();
-    } catch (e) {
-      console.error('Delete question error:', e);
+    } catch (err) {
+      console.error('Delete question error:', err);
       fetchQuestionAnalysis();
     }
   };
 
-  // Clear All Questions Confirmation Modal State
-  const [clearAllModal, setClearAllModal] = useState({ isOpen: false, clearing: false });
+  // Direct Instant Delete All Questions Handler
+  const handleDeleteAllQuestions = async () => {
+    // Optimistically clear questions in UI state immediately
+    setQuestions([]);
 
-  const executeClearAll = async () => {
-    setClearAllModal((prev) => ({ ...prev, clearing: true }));
     const token = localStorage.getItem('adminToken');
     try {
       const res = await fetch('/api/admin/questions', {
@@ -139,20 +137,10 @@ export default function AdminQuestionsPage() {
         navigate('/admin');
         return;
       }
-
-      if (res.ok) {
-        setQuestions([]);
-        setClearAllModal({ isOpen: false, clearing: false });
-        fetchQuestionAnalysis();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Failed to clear questions.');
-        setClearAllModal((prev) => ({ ...prev, clearing: false }));
-      }
-    } catch (e) {
-      console.error('Clear all questions error:', e);
-      alert('Connection error while clearing questions.');
-      setClearAllModal((prev) => ({ ...prev, clearing: false }));
+      fetchQuestionAnalysis();
+    } catch (err) {
+      console.error('Delete all questions error:', err);
+      fetchQuestionAnalysis();
     }
   };
 
@@ -447,13 +435,22 @@ export default function AdminQuestionsPage() {
             <span>Import Questions (Plain Text)</span>
           </button>
 
+          <button
+            onClick={handleOpenAdd}
+            className="px-5 py-3 bg-[#2C6A74] hover:bg-[#22555D] text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-[#5DA9B0]/30 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-white" />
+            <span>Add New Question</span>
+          </button>
+
           {questions.length > 0 && (
             <button
-              onClick={() => setClearAllModal({ isOpen: true, clearing: false })}
-              className="px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-bold shadow-warm-sm transition-all flex items-center space-x-2 border border-red-300 cursor-pointer"
+              onClick={handleDeleteAllQuestions}
+              className="px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-black shadow-warm-sm transition-all flex items-center space-x-2 border border-red-300 cursor-pointer"
+              title="Delete all questions from database"
             >
               <Trash2 className="w-4 h-4 text-white" />
-              <span>Clear All Questions ({questions.length})</span>
+              <span>DELETE ALL QUESTIONS ({questions.length})</span>
             </button>
           )}
         </div>
@@ -505,31 +502,14 @@ export default function AdminQuestionsPage() {
                     <Edit2 className="w-3.5 h-3.5 text-[#2C6A74]" />
                   </button>
 
-                  {confirmDeleteId === q.id ? (
-                    <div className="flex items-center space-x-1.5">
-                      <button
-                        onClick={() => handleDeleteQuestion(q.id)}
-                        className="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black rounded-xl border border-red-300 shadow-warm-xs cursor-pointer animate-pulse"
-                      >
-                        Confirm Delete?
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="p-1.5 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 cursor-pointer"
-                        title="Cancel"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setConfirmDeleteId(q.id)}
-                      className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 transition-colors border border-red-200 cursor-pointer"
-                      title="Delete Question"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteSingleQuestion(e, q.id)}
+                    className="p-2 rounded-xl bg-red-50 hover:bg-red-600 hover:text-white text-red-600 transition-all border border-red-200 cursor-pointer shadow-warm-xs flex items-center justify-center"
+                    title="Delete Question"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
 
@@ -848,46 +828,6 @@ export default function AdminQuestionsPage() {
       )}
 
 
-      {/* Clear All Questions Confirmation Modal */}
-      {clearAllModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#D0EFEF] rounded-[32px] max-w-md w-full p-6 shadow-warm-lg border border-[#AEE3E0] space-y-4">
-            <div className="flex items-center justify-between border-b border-[#AEE3E0] pb-3">
-              <h3 className="text-lg font-bold text-red-700 uppercase flex items-center space-x-2">
-                <Trash2 className="w-5 h-5 text-red-600" />
-                <span>Clear All Questions</span>
-              </h3>
-              <button
-                onClick={() => setClearAllModal({ isOpen: false, clearing: false })}
-                className="p-1 rounded-full hover:bg-[#AEE3E0]"
-              >
-                <X className="w-5 h-5 text-[#0F2F34]" />
-              </button>
-            </div>
-            <div className="p-3 bg-red-50 rounded-2xl border border-red-200 text-xs font-medium text-red-800 space-y-1">
-              <p className="font-bold">⚠️ Warning: Permanent Action</p>
-              <p>This will delete ALL questions in the question bank ({questions.length} questions).</p>
-            </div>
-            <div className="flex items-center space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setClearAllModal({ isOpen: false, clearing: false })}
-                className="w-1/2 py-3 bg-[#EBF7F7] text-[#0F2F34] rounded-2xl font-bold border border-[#AEE3E0] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={executeClearAll}
-                disabled={clearAllModal.clearing}
-                className="w-1/2 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-extrabold shadow-warm-sm border border-red-300 cursor-pointer disabled:opacity-50"
-              >
-                {clearAllModal.clearing ? 'Clearing...' : 'Clear All'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
