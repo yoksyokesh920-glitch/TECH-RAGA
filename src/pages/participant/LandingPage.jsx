@@ -16,13 +16,13 @@ export default function LandingPage() {
           <div className="lg:col-span-7 space-y-8">
             <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#AEE3E0] text-[#0F2F34] text-xs font-semibold tracking-wide border border-[#5DA9B0]/40 shadow-sm">
               <Sparkles className="w-3.5 h-3.5 text-[#2C6A74]" />
-              <span>Annual Inter-College Championship 2026</span>
+              <span>WEB FORGE – PRELIMINARY TEST 2026</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-[#0F2F34] tracking-tight leading-[1.08] uppercase">
-              INTER-COLLEGE<br />
-              <span className="text-[#5DA9B0] font-light">QUIZ</span><br />
-              COMPETITION
+              WEB FORGE<br />
+              <span className="text-[#5DA9B0] font-light">– PRELIMINARY –</span><br />
+              TEST
             </h1>
 
             <p className="text-base sm:text-lg text-[#3D6E75] font-normal leading-relaxed max-w-xl">
@@ -78,7 +78,7 @@ export default function LandingPage() {
                     <div className="w-8 h-8 rounded-full bg-[#5DA9B0] text-white border-2 border-white flex items-center justify-center text-[10px] font-bold">STX</div>
                     <div className="w-8 h-8 rounded-full bg-[#AEE3E0] text-[#0F2F34] border-2 border-white flex items-center justify-center text-[10px] font-bold">SRCC</div>
                   </div>
-                  <span className="text-[11px] font-semibold text-[#3D6E75]">Inter-College Event</span>
+                  <span className="text-[11px] font-semibold text-[#3D6E75]">WEB FORGE – PRELIMINARY TEST</span>
                 </div>
               </div>
 

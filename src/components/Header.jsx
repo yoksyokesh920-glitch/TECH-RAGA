@@ -23,7 +23,7 @@ export default function Header() {
             <Award className="w-4 h-4 text-[#2C6A74]" />
           </div>
           <div>
-            <h1 className="font-bold text-sm tracking-tight text-white uppercase">Inter-College Quiz Competition</h1>
+            <h1 className="font-bold text-sm tracking-tight text-white uppercase">WEB FORGE – PRELIMINARY TEST</h1>
             <p className="text-[10px] text-[#D0EFEF] font-semibold">Official Fullscreen Examination Workspace</p>
           </div>
         </div>
@@ -57,7 +57,7 @@ export default function Header() {
             </div>
             <div>
               <h1 className="font-bold text-lg sm:text-xl tracking-tight text-white leading-tight">
-                {isAdminPath ? 'Quiz Admin Portal' : 'Inter-College Quiz Competition'}
+                {isAdminPath ? 'Quiz Admin Portal' : 'WEB FORGE – PRELIMINARY TEST'}
               </h1>
               <p className="text-xs text-[#D0EFEF] font-medium">
                 {isAdminPath ? 'Event Management System' : 'Academic Excellence Championship 2026'}
