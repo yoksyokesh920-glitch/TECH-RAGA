@@ -62,7 +62,7 @@ async function runTests() {
     await fetch(`${baseUrl}/api/participant/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'User A', phone: phoneA, college: 'College A' })
+      body: JSON.stringify({ name: 'User A', phone: phoneA, college: 'College A', email: 'usera@example.com' })
     });
 
     const startARes = await fetch(`${baseUrl}/api/quiz/start`, {
@@ -81,7 +81,7 @@ async function runTests() {
     await fetch(`${baseUrl}/api/participant/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'User B', phone: phoneB, college: 'College B' })
+      body: JSON.stringify({ name: 'User B', phone: phoneB, college: 'College B', email: 'userb@example.com' })
     });
 
     // Simulate 7 minutes gap for User B

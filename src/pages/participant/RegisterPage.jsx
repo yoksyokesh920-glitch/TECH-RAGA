@@ -92,21 +92,18 @@ export default function RegisterPage() {
 
       const data = await res.json();
 
-      if (!res.ok) {
-        if (data.alreadyRegistered || data.alreadyCompleted) {
-          setAlreadyRegisteredMsg(data.error || 'This phone number is already registered. You can register again only after an administrator removes the previous registration.');
-          setShowAlreadyRegisteredModal(true);
-        } else {
-          setError(data.error || 'Registration failed.');
-        }
+      if (!res.ok && !data.alreadyRegistered) {
+        setError(data.error || 'Registration failed.');
         setLoading(false);
         return;
       }
 
-      // Store phone number as primary unique participant identifier
+      // Store phone number as primary unique participant identifier in localStorage
       localStorage.setItem('participant_phone', cleanPhone);
 
-      if (data.status === 'IN_PROGRESS') {
+      if (data.status === 'COMPLETED') {
+        navigate('/quiz/submitted');
+      } else if (data.status === 'IN_PROGRESS' || data.status === 'BLOCKED' || data.status === 'EXPIRED') {
         navigate('/quiz');
       } else {
         navigate('/quiz/start');

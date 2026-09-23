@@ -47,19 +47,7 @@ export function dbWriteWithRetry(fn, maxRetries = 6, delayMs = 25) {
 }
 
 export function initDatabase() {
-  // Drop old tables if participant_id column exists from previous version to cleanly migrate
-  try {
-    const pCols = db.pragma('table_info(participants)');
-    const hasParticipantId = pCols.some(c => c.name === 'participant_id');
-    if (hasParticipantId) {
-      console.log('Migrating database schema: removing participant_id column...');
-      db.exec('DROP TABLE IF EXISTS answers');
-      db.exec('DROP TABLE IF EXISTS quiz_attempts');
-      db.exec('DROP TABLE IF EXISTS participants');
-    }
-  } catch (e) {
-    // ignore
-  }
+  // Non-destructive database initialization & migrations
 
   // 1. PARTICIPANTS (No Participant ID string!)
   db.exec(`

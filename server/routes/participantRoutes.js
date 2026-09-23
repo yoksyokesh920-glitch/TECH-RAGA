@@ -99,9 +99,15 @@ router.post('/register', (req, res) => {
   const existingPart = db.prepare("SELECT * FROM participants WHERE phone = ? AND access_status != 'REMOVED'").get(cleanPhone);
 
   if (existingPart) {
-    return res.status(400).json({
+    let latestAttempt = db.prepare("SELECT * FROM quiz_attempts WHERE participant_id = ? ORDER BY attempt_number DESC, id DESC LIMIT 1").get(existingPart.id);
+    return res.status(200).json({
       alreadyRegistered: true,
-      error: 'This phone number is already registered. You can register again only after an administrator removes the previous registration.'
+      message: 'This phone number is already registered. Restoring session.',
+      phone: cleanPhone,
+      name: existingPart.name,
+      college: existingPart.college,
+      email: existingPart.email || '',
+      status: latestAttempt ? latestAttempt.status : 'REGISTERED'
     });
   }
 
@@ -492,7 +498,7 @@ router.post('/tab-switch-block', (req, res) => {
 
   return res.json({
     blocked: true,
-    warningCount: 2,
+    warningCount: 3,
     status: 'BLOCKED',
     message: 'Your test has been blocked due to repeated violations (2 warnings exceeded). Please contact administrator.'
   });
