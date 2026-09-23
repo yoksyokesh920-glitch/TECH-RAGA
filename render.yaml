@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: tech-raga-quiz
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        value: tech_raga_quiz_super_secret_jwt_key_2026
+    disk:
+      name: quiz-data
+      mountPath: /opt/render/project/src/server
+      sizeGB: 1
