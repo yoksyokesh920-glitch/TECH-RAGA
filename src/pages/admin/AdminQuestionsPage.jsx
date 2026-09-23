@@ -32,6 +32,12 @@ export default function AdminQuestionsPage() {
   const [importSuccessMsg, setImportSuccessMsg] = useState('');
   const [fileName, setFileName] = useState('');
 
+  // Delete Confirmation Modals State
+  const [questionToDelete, setQuestionToDelete] = useState(null);
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
   useEffect(() => {
     fetchQuestionAnalysis();
   }, []);
@@ -93,13 +99,18 @@ export default function AdminQuestionsPage() {
     setShowModal(true);
   };
 
-  // Direct Instant Delete Single Question Handler
-  const handleDeleteSingleQuestion = async (e, id) => {
+  // Safe Single Question Delete Modal Trigger
+  const handleOpenDeleteSingleModal = (e, q) => {
     e.stopPropagation();
     e.preventDefault();
+    setQuestionToDelete(q);
+  };
 
-    // Optimistically remove from UI immediately
-    setQuestions((prev) => prev.filter((q) => q.id !== id));
+  // Confirmed Single Question Delete Handler
+  const handleConfirmDeleteSingle = async () => {
+    if (!questionToDelete) return;
+    setDeleting(true);
+    const id = questionToDelete.id;
 
     const token = localStorage.getItem('adminToken');
     try {
@@ -113,23 +124,37 @@ export default function AdminQuestionsPage() {
         navigate('/admin');
         return;
       }
+      setQuestionToDelete(null);
+      setDeleting(false);
       fetchQuestionAnalysis();
     } catch (err) {
       console.error('Delete question error:', err);
+      setQuestionToDelete(null);
+      setDeleting(false);
       fetchQuestionAnalysis();
     }
   };
 
-  // Direct Instant Delete All Questions Handler
-  const handleDeleteAllQuestions = async () => {
-    // Optimistically clear questions in UI state immediately
-    setQuestions([]);
+  // Safe Delete All Questions Modal Trigger
+  const handleOpenDeleteAllModal = () => {
+    setDeleteAllConfirmText('');
+    setShowDeleteAllModal(true);
+  };
+
+  // Confirmed Delete All Questions Handler with Guard String Verification
+  const handleConfirmDeleteAll = async () => {
+    if (deleteAllConfirmText.trim() !== 'DELETE') return;
+    setDeleting(true);
 
     const token = localStorage.getItem('adminToken');
     try {
       const res = await fetch('/api/admin/questions', {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ confirmText: 'DELETE_ALL_QUESTIONS' }),
       });
 
       if (res.status === 401) {
@@ -137,9 +162,14 @@ export default function AdminQuestionsPage() {
         navigate('/admin');
         return;
       }
+      setShowDeleteAllModal(false);
+      setDeleteAllConfirmText('');
+      setDeleting(false);
       fetchQuestionAnalysis();
     } catch (err) {
       console.error('Delete all questions error:', err);
+      setShowDeleteAllModal(false);
+      setDeleting(false);
       fetchQuestionAnalysis();
     }
   };
@@ -445,7 +475,7 @@ export default function AdminQuestionsPage() {
 
           {questions.length > 0 && (
             <button
-              onClick={handleDeleteAllQuestions}
+              onClick={handleOpenDeleteAllModal}
               className="px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-black shadow-warm-sm transition-all flex items-center space-x-2 border border-red-300 cursor-pointer"
               title="Delete all questions from database"
             >
@@ -504,7 +534,7 @@ export default function AdminQuestionsPage() {
 
                   <button
                     type="button"
-                    onClick={(e) => handleDeleteSingleQuestion(e, q.id)}
+                    onClick={(e) => handleOpenDeleteSingleModal(e, q)}
                     className="p-2 rounded-xl bg-red-50 hover:bg-red-600 hover:text-white text-red-600 transition-all border border-red-200 cursor-pointer shadow-warm-xs flex items-center justify-center"
                     title="Delete Question"
                   >
@@ -827,7 +857,107 @@ export default function AdminQuestionsPage() {
         </div>
       )}
 
+      {/* Single Question Delete Confirmation Modal */}
+      {questionToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#D0EFEF] rounded-[32px] max-w-md w-full p-6 shadow-warm-lg border border-red-300 space-y-4">
+            <div className="flex items-center space-x-3 text-red-600">
+              <div className="w-10 h-10 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-[#0F2F34] uppercase">Delete Question?</h3>
+                <p className="text-xs text-[#3D6E75]">This question will be removed from the database.</p>
+              </div>
+            </div>
 
+            <div className="p-3 bg-white rounded-2xl border border-[#AEE3E0] text-xs font-bold text-[#0F2F34] line-clamp-3">
+              "{questionToDelete.question}"
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setQuestionToDelete(null)}
+                className="w-1/2 py-3 bg-[#EBF7F7] text-[#0F2F34] rounded-2xl font-bold border border-[#AEE3E0] hover:bg-[#AEE3E0]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteSingle}
+                disabled={deleting}
+                className="w-1/2 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-black shadow-warm-xs border border-red-400"
+              >
+                {deleting ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Questions Danger Confirmation Modal */}
+      {showDeleteAllModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#D0EFEF] rounded-[36px] max-w-lg w-full p-6 sm:p-8 shadow-warm-lg border-2 border-red-500 space-y-5">
+            <div className="flex items-start justify-between border-b border-red-200 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center shrink-0 border border-red-300">
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-red-700 uppercase tracking-tight">Danger Zone: Delete All Questions</h3>
+                  <p className="text-xs font-bold text-red-600">Action is Permanent & Cannot Be Undone</p>
+                </div>
+              </div>
+              <button onClick={() => setShowDeleteAllModal(false)} className="p-1.5 rounded-full hover:bg-red-100 text-[#0F2F34]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-900 space-y-2">
+              <p className="font-bold">
+                You are about to delete ALL <span className="underline">{questions.length} questions</span> from the active quiz database.
+              </p>
+              <p>
+                Once deleted, these questions will no longer appear in the candidate quiz or admin analysis panel.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-extrabold text-[#0F2F34] uppercase">
+                To confirm, type <span className="bg-red-200 text-red-900 px-1.5 py-0.5 rounded font-mono font-black">DELETE</span> into the box below:
+              </label>
+              <input
+                type="text"
+                value={deleteAllConfirmText}
+                onChange={(e) => setDeleteAllConfirmText(e.target.value)}
+                placeholder="Type DELETE to confirm"
+                className="w-full p-3.5 bg-white border border-red-300 rounded-2xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-red-500 text-[#0F2F34]"
+              />
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteAllModal(false)}
+                className="w-1/3 py-3.5 bg-[#EBF7F7] text-[#0F2F34] rounded-2xl font-bold border border-[#AEE3E0] hover:bg-[#AEE3E0]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteAll}
+                disabled={deleteAllConfirmText.trim() !== 'DELETE' || deleting}
+                className="w-2/3 py-3.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white rounded-2xl font-black shadow-warm-sm border border-red-500 flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 text-white" />
+                <span>{deleting ? 'Wiping Questions...' : 'PERMANENTLY DELETE ALL QUESTIONS'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

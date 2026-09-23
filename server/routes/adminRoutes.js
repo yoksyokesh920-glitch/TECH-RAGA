@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import db from '../db.js';
+import db, { checkpointDb } from '../db.js';
 import { authenticateAdmin, JWT_SECRET } from '../middleware/auth.js';
 import { invalidateQuestionsCache } from './participantRoutes.js';
 
@@ -413,6 +413,7 @@ router.post('/questions/import', (req, res) => {
 
   try {
     const importedCount = importTx();
+    checkpointDb();
     invalidateQuestionsCache();
     return res.status(201).json({
       message: `${importedCount} questions imported successfully.`,
@@ -449,6 +450,7 @@ router.post('/questions', (req, res) => {
     marks || 1
   );
 
+  checkpointDb();
   invalidateQuestionsCache();
   return res.status(201).json({
     message: 'Question added successfully.',
@@ -480,18 +482,25 @@ router.put('/questions/:id', (req, res) => {
     id
   );
 
+  checkpointDb();
   invalidateQuestionsCache();
   return res.json({ message: 'Question updated successfully.' });
 });
 
-// Delete all questions
+// Delete all questions (Strict Confirmation Payload Guard Required)
 router.delete('/questions', (req, res) => {
+  const { confirmText } = req.body || {};
+  if (confirmText !== 'DELETE_ALL_QUESTIONS') {
+    return res.status(400).json({ error: 'Explicit confirmation payload required to delete all questions.' });
+  }
+
   try {
     db.transaction(() => {
       db.prepare('DELETE FROM answers').run();
       db.prepare('DELETE FROM questions').run();
     })();
 
+    checkpointDb();
     invalidateQuestionsCache();
     return res.json({ message: 'All questions cleared successfully.' });
   } catch (err) {
@@ -514,6 +523,7 @@ router.delete('/questions/:id', (req, res) => {
       db.prepare('DELETE FROM questions WHERE id = ?').run(numericId);
     })();
 
+    checkpointDb();
     invalidateQuestionsCache();
     return res.json({ message: 'Question deleted successfully.', id: numericId });
   } catch (err) {

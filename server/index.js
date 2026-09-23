@@ -4,7 +4,7 @@ import path from 'path';
 import os from 'os';
 import cluster from 'cluster';
 import { fileURLToPath } from 'url';
-import { initDatabase } from './db.js';
+import { initDatabase, checkpointDb } from './db.js';
 import participantRoutes from './routes/participantRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
@@ -14,6 +14,18 @@ const __dirname = path.dirname(__filename);
 const PORT = process.env.PORT || 3001;
 const enableCluster = process.env.CLUSTER_MODE === 'true' || process.env.NODE_ENV === 'production';
 const numCPUs = Math.max(1, os.cpus().length);
+
+// Graceful process exit WAL checkpoint helper
+function shutdownHandler(signal) {
+  console.log(`\n🛑 Process PID ${process.pid} received ${signal}. Flushed WAL database checkpoints.`);
+  try {
+    checkpointDb();
+  } catch (e) {}
+  process.exit(0);
+}
+
+process.on('SIGINT', () => shutdownHandler('SIGINT'));
+process.on('SIGTERM', () => shutdownHandler('SIGTERM'));
 
 // Multi-Core CPU Clustering for 1,000+ Concurrent Requests
 if (enableCluster && cluster.isPrimary) {

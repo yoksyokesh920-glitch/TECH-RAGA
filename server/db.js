@@ -17,6 +17,15 @@ db.pragma('cache_size = -64000'); // 64MB memory page cache
 db.pragma('temp_store = MEMORY');
 db.pragma('mmap_size = 268435456'); // 256MB memory mapping for fast zero-copy reads
 
+// Helper function to force SQLite WAL checkpoint and flush all pending transactions to quiz_database.db
+export function checkpointDb() {
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+  } catch (err) {
+    console.error('Error executing SQLite WAL checkpoint:', err);
+  }
+}
+
 // Helper function to execute write transactions with exponential backoff on SQLITE_BUSY
 export function dbWriteWithRetry(fn, maxRetries = 6, delayMs = 25) {
   let attempt = 0;
@@ -212,7 +221,8 @@ export function initDatabase() {
     console.log('Seeded default admin user: admin / admin123');
   }
 
-  console.log('Database initialized successfully with clean question table.');
+  checkpointDb();
+  console.log('Database initialized successfully with persistent question table.');
 }
 
 export default db;
